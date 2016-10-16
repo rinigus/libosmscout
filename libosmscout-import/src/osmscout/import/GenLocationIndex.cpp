@@ -56,6 +56,9 @@ namespace osmscout {
 
   static const size_t REGION_INDEX_LEVEL=14;
 
+  const char* const LocationIndexGenerator::FILENAME_LOCATION_REGION_TXT = "location_region.txt";
+  const char* const LocationIndexGenerator::FILENAME_LOCATION_FULL_TXT = "location_full.txt";
+
   LocationIndexGenerator::RegionRef LocationIndexGenerator::RegionIndex::GetRegionForNode(RegionRef& rootRegion,
                                                                                           const GeoCoord& coord) const
   {
@@ -1487,7 +1490,7 @@ namespace osmscout {
                                                                                                               Region& region,
                                                                                                               const std::string &locationName)
   {
-    std::map<std::string,RegionLocation> &locations = region.locations;
+    std::map<std::string,RegionLocation>           &locations=region.locations;
     std::map<std::string,RegionLocation>::iterator loc=locations.find(locationName);
 
     if (loc!=locations.end()) {
@@ -1514,8 +1517,9 @@ namespace osmscout {
     // if locationName is same as region.name (or its name alias) add new location entry
     // it is usual case for addresses without street and defined addr:place
     std::wstring wRegionName(UTF8StringToWString(region.name));
-    std::transform(wRegionName.begin(),wRegionName.end(),wRegionName.begin(),::tolower);    
-    if (wRegionName == wLocation){
+    std::transform(wRegionName.begin(),wRegionName.end(),wRegionName.begin(),::tolower);
+
+    if (wRegionName==wLocation) {
       RegionLocation newLoc = {0, std::list<ObjectFileRef>(), std::list<RegionAddress>()};
       newLoc.objects.push_back(region.reference);
       locations[region.name]=newLoc;
@@ -1523,10 +1527,11 @@ namespace osmscout {
       return locations.find(region.name);
     }
 
-    for (auto &alias: region.aliases){
+    for (auto &alias: region.aliases) {
       std::wstring wRegionName(UTF8StringToWString(alias.name));
       std::transform(wRegionName.begin(),wRegionName.end(),wRegionName.begin(),::tolower);
-      if (wRegionName == wLocation){
+
+      if (wRegionName==wLocation) {
         RegionLocation newLoc = {0, std::list<ObjectFileRef>(), std::list<RegionAddress>()};
         newLoc.objects.push_back(ObjectFileRef(alias.reference,refNode));
         locations[alias.name]=newLoc;
@@ -1895,6 +1900,9 @@ namespace osmscout {
     description.AddRequiredFile(AreaAreaIndexGenerator::AREAADDRESS_DAT);
 
     description.AddProvidedFile(LocationIndex::FILENAME_LOCATION_IDX);
+
+    description.AddProvidedAnalysisFile(FILENAME_LOCATION_REGION_TXT);
+    description.AddProvidedAnalysisFile(FILENAME_LOCATION_FULL_TXT);
   }
 
   bool LocationIndexGenerator::Import(const TypeConfigRef& typeConfig,
@@ -2095,14 +2103,14 @@ namespace osmscout {
       DumpRegionTree(progress,
                      *rootRegion,
                      AppendFileToDir(parameter.GetDestinationDirectory(),
-                                     "location_region.txt"));
+                                     FILENAME_LOCATION_REGION_TXT));
 
       progress.SetAction("Dumping location tree");
 
       DumpLocationTree(progress,
                        *rootRegion,
                        AppendFileToDir(parameter.GetDestinationDirectory(),
-                                       "location_full.txt"));
+                                       FILENAME_LOCATION_FULL_TXT));
 
       //
       // Generate file with all areas, where areas reference parent and children by offset
