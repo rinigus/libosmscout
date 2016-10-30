@@ -1,4 +1,4 @@
-FROM debian:jessie
+FROM ubuntu:yakkety
 
 RUN apt-get update && apt-get install -y \
           git make libtool pkg-config \
@@ -7,13 +7,17 @@ RUN apt-get update && apt-get install -y \
           libfreetype6-dev \
           libcairo2-dev \
           libpangocairo-1.0-0 libpango1.0-dev \
-          qt5-default qtdeclarative5-dev libqt5svg5-dev qtpositioning5-dev \
+          qt5-default qtdeclarative5-dev libqt5svg5-dev qtlocation5-dev \
           freeglut3 freeglut3-dev \
           libmarisa-dev \
+          doxygen \
+          swig openjdk-8-jdk \
     && rm -rf /var/lib/apt/lists/*
 
+ENV JAVA_HOME /usr/lib/jvm/java-8-openjdk-amd64/
+
 RUN apt-get update && apt-get install -y \
-          cmake \
+          autoconf automake \
           gcc \
     && rm -rf /var/lib/apt/lists/*
           
