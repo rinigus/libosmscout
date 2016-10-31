@@ -42,6 +42,8 @@ set(HEADER_FILES
     include/osmscout/Coord.h
     include/osmscout/CoordDataFile.h
     #include/osmscout/CoreFeatures.h
+    include/osmscout/BoundingBoxDataFile.h
+    include/osmscout/TypeDistributionDataFile.h
     include/osmscout/Database.h
     include/osmscout/DataFile.h
     include/osmscout/DebugDatabase.h
@@ -62,6 +64,7 @@ set(HEADER_FILES
     include/osmscout/Pixel.h
     include/osmscout/Point.h
     include/osmscout/POIService.h
+    include/osmscout/ObjectVariantDataFile.h
     include/osmscout/Route.h
     include/osmscout/RouteData.h
     include/osmscout/RouteNode.h
@@ -115,6 +118,8 @@ set(SOURCE_FILES
     src/osmscout/AreaWayIndex.cpp
     src/osmscout/Coord.cpp
     src/osmscout/CoordDataFile.cpp
+    src/osmscout/BoundingBoxDataFile.cpp
+    src/osmscout/TypeDistributionDataFile.cpp
     src/osmscout/Database.cpp
     src/osmscout/DebugDatabase.cpp
     src/osmscout/GeoCoord.cpp
@@ -133,6 +138,7 @@ set(SOURCE_FILES
     src/osmscout/Pixel.cpp
     src/osmscout/Point.cpp
     src/osmscout/POIService.cpp
+    src/osmscout/ObjectVariantDataFile.cpp
     src/osmscout/Route.cpp
     src/osmscout/RouteData.cpp
     src/osmscout/RouteNode.cpp
