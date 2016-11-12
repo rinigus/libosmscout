@@ -1,3 +1,9 @@
+# Sailfish branch
+
+This is a fork from https://github.com/Framstag/libosmscout that closely follows the upstream. The only changes introduced in this branch are related to Sailfish releases. In particular, versions are released and, through the versions, its possible to recompile packages with the older versions. In addition, when changes are needed to make project compile on Sailfish, they are made here. 
+
+Below, is the original README from upstream.
+
 # About
 
 Libosmscout is a C++ library for offline map rendering, routing and location lookup
