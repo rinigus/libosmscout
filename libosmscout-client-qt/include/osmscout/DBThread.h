@@ -172,7 +172,7 @@ private:
 
   void TileStateCallback(const osmscout::TileRef& changedTile);
 
-public:  
+public:
   QString GetStylesheetFilename() const;
 
   const QList<StyleError> &GetStyleErrors() const
@@ -204,16 +204,12 @@ public:
                           size_t limit,
                           osmscout::LocationSearchResult& result) const;
 
-  bool CalculateRoute(osmscout::Vehicle vehicle,
-                      const osmscout::RoutingProfile& routingProfile,
-                      const osmscout::ObjectFileRef& startObject,
-                      size_t startNodeIndex,
-                      const osmscout::ObjectFileRef targetObject,
-                      size_t targetNodeIndex,
+  bool CalculateRoute(const osmscout::RoutingProfile& routingProfile,
+                      const osmscout::RoutePosition& start,
+                      const osmscout::RoutePosition target,
                       osmscout::RouteData& route);
 
-  bool TransformRouteDataToRouteDescription(osmscout::Vehicle vehicle,
-                                            const osmscout::RoutingProfile& routingProfile,
+  bool TransformRouteDataToRouteDescription(const osmscout::RoutingProfile& routingProfile,
                                             const osmscout::RouteData& data,
                                             osmscout::RouteDescription& description,
                                             const std::string& start,
@@ -222,11 +218,9 @@ public:
                                const osmscout::RouteData& data,
                                osmscout::Way& way);
 
-  bool GetClosestRoutableNode(const osmscout::ObjectFileRef& refObject,
-                              const osmscout::Vehicle& vehicle,
-                              double radius,
-                              osmscout::ObjectFileRef& object,
-                              size_t& nodeIndex);
+  osmscout::RoutePosition GetClosestRoutableNode(const osmscout::ObjectFileRef& refObject,
+                                                 const osmscout::RoutingProfile& routingProfile,
+                                                 double radius);
 
   void ClearRoute();
   void AddRoute(const osmscout::Way& way);

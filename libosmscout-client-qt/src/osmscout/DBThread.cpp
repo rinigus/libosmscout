@@ -421,7 +421,7 @@ bool DBThread::ReloadStyle(const QString &suffix)
   osmscout::StyleConfigRef newStyleConfig=std::make_shared<osmscout::StyleConfig>(typeConfig);
 
   newStyleConfig->AddFlag("daylight",daylight);
-  
+
   styleErrors.clear();
   if (newStyleConfig->Load((stylesheetFilename+suffix).toLocal8Bit().data())) {
     // Tear down
@@ -556,7 +556,7 @@ void DBThread::DrawMap()
                    projection.GetHeight());
 
     renderProjection.SetLinearInterpolationUsage(renderProjection.GetMagnification().GetLevel() >= 10);
-    
+
     mapService->LookupTiles(renderProjection,tiles);
 
     mapService->ConvertTilesToMapData(tiles,data);
@@ -784,30 +784,24 @@ bool DBThread::SearchForLocations(const std::string& searchPattern,
                                              result);
 }
 
-bool DBThread::CalculateRoute(osmscout::Vehicle vehicle,
-                              const osmscout::RoutingProfile& routingProfile,
-                              const osmscout::ObjectFileRef& startObject,
-                              size_t startNodeIndex,
-                              const osmscout::ObjectFileRef targetObject,
-                              size_t targetNodeIndex,
+bool DBThread::CalculateRoute(const osmscout::RoutingProfile& routingProfile,
+                              const osmscout::RoutePosition& start,
+                              const osmscout::RoutePosition target,
                               osmscout::RouteData& route)
 {
   QMutexLocker locker(&mutex);
 
-  if (!AssureRouter(vehicle)) {
+  if (!AssureRouter(routingProfile.GetVehicle())) {
     return false;
   }
 
   return router->CalculateRoute(routingProfile,
-                                startObject,
-                                startNodeIndex,
-                                targetObject,
-                                targetNodeIndex,
+                                start,
+                                target,
                                 route);
 }
 
-bool DBThread::TransformRouteDataToRouteDescription(osmscout::Vehicle vehicle,
-                                                    const osmscout::RoutingProfile& routingProfile,
+bool DBThread::TransformRouteDataToRouteDescription(const osmscout::RoutingProfile& routingProfile,
                                                     const osmscout::RouteData& data,
                                                     osmscout::RouteDescription& description,
                                                     const std::string& start,
@@ -815,7 +809,7 @@ bool DBThread::TransformRouteDataToRouteDescription(osmscout::Vehicle vehicle,
 {
   QMutexLocker locker(&mutex);
 
-  if (!AssureRouter(vehicle)) {
+  if (!AssureRouter(routingProfile.GetVehicle())) {
     return false;
   }
 
@@ -894,72 +888,60 @@ void DBThread::AddRoute(const osmscout::Way& way)
   emit Redraw();
 }
 
-bool DBThread::GetClosestRoutableNode(const osmscout::ObjectFileRef& refObject,
-                                      const osmscout::Vehicle& vehicle,
-                                      double radius,
-                                      osmscout::ObjectFileRef& object,
-                                      size_t& nodeIndex)
+osmscout::RoutePosition DBThread::GetClosestRoutableNode(const osmscout::ObjectFileRef& refObject,
+                                                         const osmscout::RoutingProfile& routingProfile,
+                                                         double radius)
 {
   QMutexLocker locker(&mutex);
 
-  if (!AssureRouter(vehicle)) {
-    return false;
-  }
+  osmscout::RoutePosition position;
 
-  object.Invalidate();
+  if (!AssureRouter(routingProfile.GetVehicle())) {
+    return position;
+  }
 
   if (refObject.GetType()==osmscout::refNode) {
     osmscout::NodeRef node;
 
     if (!database->GetNodeByOffset(refObject.GetFileOffset(),
                                    node)) {
-      return false;
+      return position;
     }
 
-    return router->GetClosestRoutableNode(node->GetCoords().GetLat(),
-                                          node->GetCoords().GetLon(),
-                                          vehicle,
-                                          radius,
-                                          object,
-                                          nodeIndex);
+    return router->GetClosestRoutableNode(node->GetCoords(),
+                                          routingProfile,
+                                          radius);
   }
   else if (refObject.GetType()==osmscout::refArea) {
     osmscout::AreaRef area;
 
     if (!database->GetAreaByOffset(refObject.GetFileOffset(),
                                    area)) {
-      return false;
+      return position;
     }
 
     osmscout::GeoCoord center;
 
     area->GetCenter(center);
 
-    return router->GetClosestRoutableNode(center.GetLat(),
-                                          center.GetLon(),
-                                          vehicle,
-                                          radius,
-                                          object,
-                                          nodeIndex);
+    return router->GetClosestRoutableNode(center,
+                                          routingProfile,
+                                          radius);
   }
   else if (refObject.GetType()==osmscout::refWay) {
     osmscout::WayRef way;
 
     if (!database->GetWayByOffset(refObject.GetFileOffset(),
                                   way)) {
-      return false;
+      return position;
     }
 
-    return router->GetClosestRoutableNode(way->nodes[0].GetLat(),
-                                          way->nodes[0].GetLon(),
-                                          vehicle,
-                                          radius,
-                                          object,
-                                          nodeIndex);
+    return router->GetClosestRoutableNode(way->nodes[0].GetCoord(),
+                                          routingProfile,
+                                          radius);
   }
-  else {
-    return true;
-  }
+
+  return position;
 }
 
 static DBThread* dbThreadInstance=NULL;
