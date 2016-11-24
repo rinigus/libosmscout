@@ -62,7 +62,7 @@ script:
 notifications:
   email:
     recipients:
-      - tim@framstag.com
-    on_success: change
-    on_failure: always
+      - rinigus.git@gmail.com
+    on_success: never
+    on_failure: never
 

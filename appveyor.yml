@@ -2,7 +2,7 @@ version: '{build}'
 
 branches:
   only:
-    - master
+    - sailfish
     
 os: Visual Studio 2015
 
@@ -49,7 +49,8 @@ build_script:
 notifications:
   - provider: Email
     to:
-      - tim@framstag.com
-    on_build_failure: true
-    on_build_status_changed: true
+      - rinigus.git@gmail.com
+    on_build_failure: false
+    on_build_status_changed: false
+    on_build_success: false
           
