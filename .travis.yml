@@ -3,10 +3,6 @@ language: cpp
 cache:
   - apt
 
-branches:
-  only:
-    - master
-
 matrix:
   include:
     - os: linux
