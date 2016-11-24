@@ -78,10 +78,10 @@ notifications:
 deploy:
   provider: releases
   api_key:
-    secure: <INSERT HERE SECURE KEY>
+    secure: eCfDZuC06mHFaLgcrWSgmZV1vK5vWJKCxKSLecgXGaNz9i89uqzO91Yu7x3o0SJOSkFbelkwWBdbGGiYzGBQIcJ8902eTyTgOeiAC/GwflGWLZPdE++NlGNToyPNZ8HcpA+JrsfLvt/iJ25vwlRyCBReoFqYY/chbSrAzO7UxIOFH9Bw+XDTkWPQO1WPH3tV+Iqo2wb4p5VfNT6tgYFJ/S8wf7pA/okypJ0axpC9yBRQDOug2b4cBucm8MHtQV2t6TCZqP1I5imYboSUY9uBOsjO6Ga9yjdFo3nphV0XdErhxsBwVz38DZmCM3IZz69iLSnUtjD6qVWI4cF4tK76P6GHbxGfXJsquHBIxScqOZjMf86H/AjzK8P4mmg8K4Bt4OWONZT2knSZ0LYbbIyqkLDecM//A6mgnc5VuaTMFURUEKn12QXnaVrptAvc4X5oPnSevBeoBxDythYF8krOo5p56wDLemcsoB5BNX8jPELuganf5VD2AiKg+hTb0+Rg4k24Eo0qfay+i2w4lJdVDmWvreCCRtCE40kRERce8hraFUaxBaoHqO6XOiIEYP/A/BQzph13NRaCbQyh+lafxEmRc6pIPo2mb1p2XMnOhzcEvRI85Af1wK7C1iRVyZ99dOadiYqN3QIUOu6rHWfKx6NMdpkcHUGU1vKJfjPScD0=
   file: build-import/libosmscout-importer.$IMPORT_TOOL_OS.$IMPORT_TOOL_ARCH.tar.gz
   skip_cleanup: true
   on:
     tags: true
-    repo: <INSERT HERE YOUR REPO>
+    repo: rinigus/libosmscout
     condition: $TARGET = importer
