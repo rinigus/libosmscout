@@ -1,6 +1,11 @@
 # Sailfish branch
 
-This is a fork from https://github.com/Framstag/libosmscout that closely follows the upstream. The only changes introduced in this branch are related to Sailfish releases. In particular, versions are released and, through the versions, its possible to recompile packages with the older versions. In addition, when changes are needed to make project compile on Sailfish, they are made here. 
+This is a fork from https://github.com/Framstag/libosmscout that closely follows the upstream. The only changes introduced in this branch are related to Sailfish releases. In particular, versions are released and, through the versions, its possible to recompile packages with the older versions. In addition, when changes are needed to make project compile on Sailfish, they are made here.
+
+Current build status:
+* Linux, OS X: [![Build Status](https://travis-ci.org/rinigus/libosmscout.svg?branch=master)](https://travis-ci.org/rinigus/libosmscout)
+* Windows: [![Build status](https://ci.appveyor.com/api/projects/status/7mg7ad2qyyqgum54?svg=true)](https://ci.appveyor.com/project/rinigus/libosmscout)
+
 
 Below, is the original README from upstream.
 
@@ -67,7 +72,3 @@ Ubuntu 14.04. For both operating systems clang and gcc is used as compiler.
 You can find automatic builds for Windows at
 [Appveyor](https://ci.appveyor.com/project/Framstag/libosmscout). There are builds
 for using MinGW (autoconf, cmake) and VisualStudio (cmake).
-
-Current build status:
-* Linux, OS X: [![Build Status](https://travis-ci.org/Framstag/libosmscout.svg?branch=master)](https://travis-ci.org/Framstag/libosmscout)
-* Windows: [![Build status](https://ci.appveyor.com/api/projects/status/s38jd7v5cwhwra8t?svg=true)](https://ci.appveyor.com/project/Framstag/libosmscout)
