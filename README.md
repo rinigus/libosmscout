@@ -3,7 +3,7 @@
 This is a fork from https://github.com/Framstag/libosmscout that closely follows the upstream. The only changes introduced in this branch are related to Sailfish releases. In particular, versions are released and, through the versions, its possible to recompile packages with the older versions. In addition, when changes are needed to make project compile on Sailfish, they are made here.
 
 Current build status:
-* Linux, OS X: [![Build Status](https://travis-ci.org/rinigus/libosmscout.svg?branch=master)](https://travis-ci.org/rinigus/libosmscout)
+* Linux, OS X: [![Build Status](https://travis-ci.org/rinigus/libosmscout.svg?branch=sailfish)](https://travis-ci.org/rinigus/libosmscout)
 * Windows: [![Build status](https://ci.appveyor.com/api/projects/status/7mg7ad2qyyqgum54?svg=true)](https://ci.appveyor.com/project/rinigus/libosmscout)
 
 
