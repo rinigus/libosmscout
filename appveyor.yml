@@ -16,32 +16,6 @@ environment:
     BIT: 64
     BUILDTOOL: cmake
     TARGET: importer
-  - COMPILER: msvc2015
-    PLATFORM: x64
-    CONFIGURATION: Debug
-    MSYS2_ARCH: x86_64
-    MSYS2_DIR: msys64
-    MSYSTEM: MINGW64
-    BIT: 64
-    BUILDTOOL: msbuild
-    TARGET: build
-  - COMPILER: msvc2015
-    PLATFORM: x64
-    CONFIGURATION: Debug
-    MSYS2_ARCH: x86_64
-    MSYS2_DIR: msys64
-    MSYSTEM: MINGW64
-    BIT: 64
-    BUILDTOOL: cmake
-    TARGET: build
-  - COMPILER: msys2
-    PLATFORM: x64
-    MSYS2_ARCH: x86_64
-    MSYS2_DIR: msys64
-    MSYSTEM: MINGW64
-    BIT: 64
-    BUILDTOOL: autoconf
-    TARGET: build
   - COMPILER: msys2
     PLATFORM: x64
     MSYS2_ARCH: x86_64

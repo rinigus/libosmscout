@@ -2,6 +2,10 @@ language: cpp
 
 cache:
   - apt
+  
+branches:
+  except:
+    - master
 
 matrix:
   include:
@@ -9,32 +13,6 @@ matrix:
       dist: trusty
       sudo: required
       compiler: gcc
-      env:
-        - BUILDTOOL=autoconf
-        - TARGET=build
-    - os: linux
-      dist: trusty
-      sudo: required
-      compiler: gcc
-      env:
-        - BUILDTOOL=cmake
-        - TARGET=build
-    - os: linux
-      dist: trusty
-      sudo: required
-      compiler: clang
-      env:
-        - BUILDTOOL=autoconf
-        - TARGET=build
-    - os: osx
-      osx_image: xcode7.3
-      compiler: clang
-      env:
-        - BUILDTOOL=autoconf
-        - TARGET=build
-    - os: osx
-      osx_image: xcode7.3
-      compiler: clang
       env:
         - BUILDTOOL=cmake
         - TARGET=build
