@@ -467,10 +467,10 @@ int main(int argc, char* argv[])
   std::list<std::string>    mapfiles;
 
   osmscout::VehicleMask     defaultVehicleMask=osmscout::vehicleBicycle|osmscout::vehicleFoot|osmscout::vehicleCar;
-  bool                      deleteTemporaries=false;
-  bool                      deleteDebugging=false;
-  bool                      deleteAnalysis=false;
-  bool                      deleteReport=false;
+  bool                      deleteTemporaries=true;
+  bool                      deleteDebugging=true;
+  bool                      deleteAnalysis=true;
+  bool                      deleteReport=true;
 
   InitializeLocale(progress);
 
