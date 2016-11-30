@@ -44,12 +44,11 @@ QBreaker::QBreaker()
 {
 }
 
-bool QBreaker::Break()
+void QBreaker::Break()
 {
   QMutexLocker locker(&mutex);
-  aborted=true;
 
-  return true;
+  aborted=true;
 }
 
 bool QBreaker::IsAborted() const
@@ -795,10 +794,19 @@ bool DBThread::CalculateRoute(const osmscout::RoutingProfile& routingProfile,
     return false;
   }
 
-  return router->CalculateRoute(routingProfile,
+  osmscout::RoutingResult    result;
+  osmscout::RoutingParameter parameter;
+
+  result=router->CalculateRoute(routingProfile,
                                 start,
                                 target,
-                                route);
+                                parameter);
+
+  bool success=result.Success();
+
+  route=std::move(result.GetRoute());
+
+  return success;
 }
 
 bool DBThread::TransformRouteDataToRouteDescription(const osmscout::RoutingProfile& routingProfile,
