@@ -3,9 +3,9 @@ language: cpp
 cache:
   - apt
   
-#branches:
-#  except:
-#    - master
+branches:
+  except:
+    - master
 
 matrix:
   include:
