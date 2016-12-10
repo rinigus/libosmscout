@@ -64,6 +64,7 @@ ctest -V %{?_smp_mflags}
 # %{_libdir}/libosmscout_map_qt.so
 # %{_libdir}/libosmscout_client_qt.so
 # #%{_libdir}/libosmscout_map_cairo.so
+%{_datadir}/stylesheets
 
 %files devel
 %defattr(-, root, root, 0755)
