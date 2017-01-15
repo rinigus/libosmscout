@@ -42,6 +42,8 @@
 #include <osmscout/util/Projection.h>
 #include <osmscout/util/Transformation.h>
 
+#include <osmscout/system/Compiler.h>
+
 #include <osmscout/LabelLayouter.h>
 #include <osmscout/MapParameter.h>
 
@@ -52,15 +54,19 @@ namespace osmscout {
    *
    * This is the data structure holding all to be rendered data.
    */
-  struct OSMSCOUT_MAP_API MapData
+  class OSMSCOUT_MAP_API MapData CLASS_FINAL
   {
-    std::vector<NodeRef>     nodes;       //!< Nodes as retrieved from database
-    std::vector<AreaRef>     areas;       //!< Areas as retrieved from database
-    std::vector<WayRef>      ways;        //!< Ways as retrieved from database
-    std::list<NodeRef>       poiNodes;    //!< List of manually added nodes (not managed or changed by the database)
-    std::list<AreaRef>       poiAreas;    //!< List of manually added areas (not managed or changed by the database)
-    std::list<WayRef>        poiWays;     //!< List of manually added ways (not managed or changed by the database)
-    std::list<GroundTile>    groundTiles; //!< List of ground tiles (optional)
+  public:
+    std::vector<NodeRef>  nodes;       //!< Nodes as retrieved from database
+    std::vector<AreaRef>  areas;       //!< Areas as retrieved from database
+    std::vector<WayRef>   ways;        //!< Ways as retrieved from database
+    std::list<NodeRef>    poiNodes;    //!< List of manually added nodes (not managed or changed by the database)
+    std::list<AreaRef>    poiAreas;    //!< List of manually added areas (not managed or changed by the database)
+    std::list<WayRef>     poiWays;     //!< List of manually added ways (not managed or changed by the database)
+    std::list<GroundTile> groundTiles; //!< List of ground tiles (optional)
+
+  public:
+    void ClearDBData();
   };
 
   /**
@@ -173,6 +179,9 @@ namespace osmscout {
     struct OSMSCOUT_MAP_API LabelLayoutData
     {
       size_t       position;   //!< Relative position of the label
+      double       xOff;       //!< Optional horizontal offset within the label
+      double       yOff;       //!< Optional vertical offset within the label
+      double       width;      //!< Width of the label
       double       height;     //!< Height of the label
       std::string  label;      //!< The text of the label (only used if TextStyle is set)
       double       fontSize;   //!< The font size (only used if TextStyle is set)
@@ -195,6 +204,7 @@ namespace osmscout {
       Temporary data structures for intelligent label positioning
       */
     //@{
+    size_t                       nextLabelId;
     LabelLayouter                labels;
     LabelLayouter                overlayLabels;
 
@@ -319,13 +329,10 @@ namespace osmscout {
 
     bool RegisterPointLabel(const Projection& projection,
                             const MapParameter& parameter,
-                            const LabelStyleRef& style,
-                            const std::string& text,
-                            double fontSize,
-                            double height,
-                            double alpha,
+                            const LabelLayoutData& data,
                             double x,
-                            double y);
+                            double y,
+                            size_t id);
 
     void LayoutPointLabels(const Projection& projection,
                            const MapParameter& parameter,
@@ -403,7 +410,7 @@ namespace osmscout {
      */
     //@{
     bool IsVisibleArea(const Projection& projection,
-                       const std::vector<Point>& nodes,
+                       const GeoBox& boundingBox,
                        double pixelOffset) const;
 
     bool IsVisibleWay(const Projection& projection,
@@ -495,13 +502,6 @@ namespace osmscout {
                                   double& yOff,
                                   double& width,
                                   double& height) = 0;
-
-    /**
-      Return the size of the frame around the label text.
-     */
-    virtual void GetLabelFrame(const LabelStyle& style,
-                               double& horizontal,
-                               double& vertical);
 
     /**
       (Optionally) fills the area with the given default color

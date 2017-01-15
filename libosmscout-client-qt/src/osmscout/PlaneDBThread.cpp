@@ -53,6 +53,12 @@ PlaneDBThread::PlaneDBThread(QStringList databaseLookupDirs,
 {
   pendingRenderingTimer.setSingleShot(true);
 
+  //
+  // Make sure that we decouple caller and receiver if SLOT method acquire locks,
+  // even if they are running in the same thread
+  // else we might get into a dead lock
+  //
+
   connect(this,SIGNAL(TriggerMapRenderingSignal(const RenderMapRequest&)),
           this,SLOT(TriggerMapRendering(const RenderMapRequest&)),
           Qt::QueuedConnection);
@@ -67,10 +73,9 @@ PlaneDBThread::PlaneDBThread(QStringList databaseLookupDirs,
           this,SLOT(HandleTileStatusChanged(const osmscout::TileRef&)),
           Qt::QueuedConnection);
 
-  //
-  // Make sure that we always decouple caller and receiver even if they are running in the same thread
-  // else we might get into a dead lock
-  //
+  connect(this,SIGNAL(stylesheetFilenameChanged()),
+          this,SLOT(onStylesheetFilenameChanged()),
+          Qt::QueuedConnection);
 
   connect(this,SIGNAL(TriggerDrawMap()),
           this,SLOT(DrawMap()),
@@ -87,9 +92,11 @@ void PlaneDBThread::Initialize()
 
   osmscout::log.Debug() << "Initialize";
   // invalidate tile cache and init base
-  osmscout::GeoBox boundingBox;
-  DBThread::InitializeDatabases(boundingBox);
+  DBThread::InitializeDatabases();
+}
 
+void PlaneDBThread::onStylesheetFilenameChanged()
+{
   {
     QMutexLocker locker(&mutex);
     QMutexLocker finishedLocker(&finishedMutex);
@@ -184,8 +191,11 @@ bool PlaneDBThread::RenderMap(QPainter& painter,
   //qDebug() << "Draw final image to canvas:" << QRectF(x1,y1,x2-x1,y2-y1);
   painter.drawImage(QRectF(x1,y1,x2-x1,y2-y1),*finishedImage);
 
-  bool needsNoRepaint=finishedImage->width()==(int) request.width &&
-                      finishedImage->height()==(int) request.height &&
+  RenderMapRequest extendedRequest=request;
+  extendedRequest.width*=1.5;
+  extendedRequest.height*=1.5;
+  bool needsNoRepaint=finishedImage->width()==(int) extendedRequest.width &&
+                      finishedImage->height()==(int) extendedRequest.height &&
                       finishedCoord==request.coord &&
                       finishedAngle==request.angle &&
                       finishedMagnification==request.magnification;
@@ -193,9 +203,9 @@ bool PlaneDBThread::RenderMap(QPainter& painter,
   if (!needsNoRepaint){
     {
       QMutexLocker reqLocker(&lastRequestMutex);
-      lastRequest=request;
+      lastRequest=extendedRequest;
     }
-    emit TriggerMapRenderingSignal(request);
+    emit TriggerMapRenderingSignal(extendedRequest);
   }
 
   return needsNoRepaint;
@@ -285,7 +295,6 @@ void PlaneDBThread::InvalidateVisualCache()
 
 void PlaneDBThread::HandleTileStatusChanged(const osmscout::TileRef& changedTile)
 {
-  //return; // FIXME: remove this return, make loading asynchronous
   QMutexLocker locker(&mutex);
 
   bool relevant=false;
@@ -339,14 +348,21 @@ void PlaneDBThread::TileStateCallback(const osmscout::TileRef& changedTile)
  */
 void PlaneDBThread::DrawMap()
 {
-  osmscout::log.Debug() << "DrawMap()";
+  osmscout::log.Debug() << "DrawMap()";  
   {
     QMutexLocker locker(&mutex);
+    osmscout::FillStyleRef unknownFillStyle;
     for (auto db:databases){
       if (!db->database->IsOpen() || (!db->styleConfig)) {
-          qWarning() << " Not initialized! " << db->path;
+          osmscout::log.Warn() << " Not initialized! " << db->path.toLocal8Bit().data();
           return;
       }
+      if (db->styleConfig && !unknownFillStyle){
+        db->styleConfig->GetUnknownFillStyle(projection, unknownFillStyle);
+      }
+    }
+    if (!unknownFillStyle){
+      osmscout::log.Warn() << " Can't retrieve UnknownFillStyle";
     }
 
     if (currentImage==NULL ||
@@ -370,17 +386,19 @@ void PlaneDBThread::DrawMap()
     drawParameter.SetDebugPerformance(true);
     drawParameter.SetOptimizeWayNodes(osmscout::TransPolygon::quality);
     drawParameter.SetOptimizeAreaNodes(osmscout::TransPolygon::quality);
-    drawParameter.SetRenderBackground(true); // we always render background in PlaneDBThread
+    drawParameter.SetRenderBackground(false); // we draw background before MapPainter
+    drawParameter.SetRenderUnknowns(false); // it is necessary to disable it with multiple databases
     drawParameter.SetRenderSeaLand(renderSea);
 
     // create copy of projection
     osmscout::MercatorProjection renderProjection;
+
     renderProjection.Set(projection.GetCenter(),
-                   projection.GetAngle(),
-                   projection.GetMagnification(),
-                   projection.GetDPI(),
-                   projection.GetWidth(),
-                   projection.GetHeight());
+                         projection.GetAngle(),
+                         projection.GetMagnification(),
+                         projection.GetDPI(),
+                         projection.GetWidth(),
+                         projection.GetHeight());
 
     renderProjection.SetLinearInterpolationUsage(renderProjection.GetMagnification().GetLevel() >= 10);
 
@@ -389,14 +407,18 @@ void PlaneDBThread::DrawMap()
     p.setRenderHint(QPainter::Antialiasing);
     p.setRenderHint(QPainter::TextAntialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
-
+    p.fillRect(QRectF(0,0,projection.GetWidth(),projection.GetHeight()),
+                      QBrush(QColor::fromRgbF(unknownFillStyle->GetFillColor().GetR(),
+                                              unknownFillStyle->GetFillColor().GetG(),
+                                              unknownFillStyle->GetFillColor().GetB(),
+                                              1)));
     bool success=true;
     for (auto &db:databases){
       std::list<osmscout::TileRef> tiles;
-      osmscout::MapData data; // TODO: make sence cache these data?
+      osmscout::MapData            data; // TODO: make sence cache these data?
 
       db->mapService->LookupTiles(renderProjection,tiles);
-      db->mapService->ConvertTilesToMapData(tiles,data);
+      db->mapService->AddTileDataToMapData(tiles,data);
 
       if (drawParameter.GetRenderSeaLand()) {
         db->mapService->GetGroundTiles(renderProjection,
