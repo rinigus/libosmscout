@@ -49,21 +49,21 @@ namespace osmscout {
       return false;
     }
 
-    if (a.boundingBox.minCoord.GetLon()==b.boundingBox.minCoord.GetLon()) {
-      if (a.boundingBox.maxCoord.GetLon()==b.boundingBox.maxCoord.GetLon()) {
-        if (a.boundingBox.minCoord.GetLat()==b.boundingBox.minCoord.GetLat()) {
-          return a.boundingBox.maxCoord.GetLat()>b.boundingBox.maxCoord.GetLat();
+    if (a.boundingBox.GetMinCoord().GetLon()==b.boundingBox.GetMinCoord().GetLon()) {
+      if (a.boundingBox.GetMaxCoord().GetLon()==b.boundingBox.GetMaxCoord().GetLon()) {
+        if (a.boundingBox.GetMinCoord().GetLat()==b.boundingBox.GetMinCoord().GetLat()) {
+          return a.boundingBox.GetMaxCoord().GetLat()>b.boundingBox.GetMaxCoord().GetLat();
         }
         else {
-          return a.boundingBox.minCoord.GetLat()<b.boundingBox.minCoord.GetLat();
+          return a.boundingBox.GetMinCoord().GetLat()<b.boundingBox.GetMinCoord().GetLat();
         }
       }
       else {
-        return a.boundingBox.maxCoord.GetLon()>b.boundingBox.maxCoord.GetLon();
+        return a.boundingBox.GetMaxCoord().GetLon()>b.boundingBox.GetMaxCoord().GetLon();
       }
     }
     else {
-      return a.boundingBox.minCoord.GetLon()<b.boundingBox.minCoord.GetLon();
+      return a.boundingBox.GetMinCoord().GetLon()<b.boundingBox.GetMinCoord().GetLon();
     }
   }
 
@@ -543,10 +543,10 @@ namespace osmscout {
       if (tile->coords.empty()) {
         points.resize(5);
 
-        points[0].SetCoord(areaData.boundingBox.minCoord);
-        points[1].SetCoord(GeoCoord(areaData.boundingBox.minCoord.GetLat(),areaData.boundingBox.maxCoord.GetLon()));
-        points[2].SetCoord(areaData.boundingBox.maxCoord);
-        points[3].SetCoord(GeoCoord(areaData.boundingBox.maxCoord.GetLat(),areaData.boundingBox.minCoord.GetLon()));
+        points[0].SetCoord(areaData.boundingBox.GetMinCoord());
+        points[1].SetCoord(GeoCoord(areaData.boundingBox.GetMinCoord().GetLat(),areaData.boundingBox.GetMaxCoord().GetLon()));
+        points[2].SetCoord(areaData.boundingBox.GetMaxCoord());
+        points[3].SetCoord(GeoCoord(areaData.boundingBox.GetMaxCoord().GetLat(),areaData.boundingBox.GetMinCoord().GetLon()));
         points[4]=points[0];
 
         transBuffer.transPolygon.TransformArea(projection,
@@ -579,8 +579,8 @@ namespace osmscout {
           double lat;
           double lon;
 
-          lat=areaData.boundingBox.minCoord.GetLat()+tile->coords[i].y*tile->cellHeight/GroundTile::Coord::CELL_MAX;
-          lon=areaData.boundingBox.minCoord.GetLon()+tile->coords[i].x*tile->cellWidth/GroundTile::Coord::CELL_MAX;
+          lat=areaData.boundingBox.GetMinCoord().GetLat()+tile->coords[i].y*tile->cellHeight/GroundTile::Coord::CELL_MAX;
+          lon=areaData.boundingBox.GetMinCoord().GetLon()+tile->coords[i].x*tile->cellWidth/GroundTile::Coord::CELL_MAX;
 
           points[i].SetCoord(GeoCoord(lat,lon));
         }
@@ -745,6 +745,7 @@ namespace osmscout {
 
     GetTextDimension(projection,
                      parameter,
+                     /*objectWidth*/ -1,
                      style->GetSize(),
                      text,
                      xOff,yOff,width,height);
@@ -832,6 +833,7 @@ namespace osmscout {
                                      const std::vector<TextStyleRef>& textStyles,
                                      double x,
                                      double y,
+                                     double objectWidth,
                                      double objectHeight)
   {
     labelLayoutData.clear();
@@ -902,13 +904,14 @@ namespace osmscout {
         data.fontSize=textStyle->GetSize()*pow(1.5,factor);
 
         GetTextDimension(projection,
-                        parameter,
-                        data.fontSize,
-                        label,
-                        data.xOff,
-                        data.yOff,
-                        data.width,
-                        data.height);
+                         parameter,
+                         objectWidth,
+                         data.fontSize,
+                         label,
+                         data.xOff,
+                         data.yOff,
+                         data.width,
+                         data.height);
 
         data.alpha=std::min(textStyle->GetAlpha()/factor, 1.0);
       }
@@ -936,6 +939,7 @@ namespace osmscout {
 
         GetTextDimension(projection,
                          parameter,
+                         objectWidth,
                          data.fontSize,
                          label,
                          data.xOff,
@@ -948,6 +952,7 @@ namespace osmscout {
 
         GetTextDimension(projection,
                          parameter,
+                         objectWidth,
                          data.fontSize,
                          label,
                          data.xOff,
@@ -1007,6 +1012,25 @@ namespace osmscout {
       offset+=data.height;
     }
     //std::cout << "<<<" << std::endl;
+  }
+
+  double MapPainter::proposedLabelWidth(const MapParameter& parameter,
+                                        double averageCharWidth,
+                                        double objectWidth,
+                                        size_t stringLength)
+  {
+    double proposedWidth;
+    // If there is just a few characters (less than LabelLineMinCharCount)
+    // we should not wrap the words at all.
+    if (stringLength>parameter.GetLabelLineMinCharCount()){
+      proposedWidth=objectWidth>0 && parameter.GetLabelLineFitToArea() ?
+        std::min(objectWidth,parameter.GetLabelLineFitToWidth()) : parameter.GetLabelLineFitToWidth();
+      proposedWidth=std::min(proposedWidth,(double)parameter.GetLabelLineMaxCharCount()*averageCharWidth);
+      proposedWidth=std::max(proposedWidth,(double)parameter.GetLabelLineMinCharCount()*averageCharWidth);
+    }else{
+      proposedWidth=parameter.GetLabelLineMaxCharCount()*averageCharWidth;
+    }
+    return proposedWidth;
   }
 
   void MapPainter::DrawNodes(const StyleConfig& styleConfig,
@@ -1102,6 +1126,7 @@ namespace osmscout {
                       textStyles,
                       (minX+maxX)/2,
                       (minY+maxY)/2,
+                      maxX-minX,
                       maxY-minY);
   }
 
@@ -1252,7 +1277,7 @@ namespace osmscout {
                       node->GetFeatureValueBuffer(),
                       iconStyle,
                       textStyles,
-                      x,y,0);
+                      x,y);
 
     nodesDrawn++;
   }
@@ -1500,15 +1525,12 @@ namespace osmscout {
 
     projection.GetDimensions(boundingBox);
 
-    size_t startTileX=LonToTileX(boundingBox.GetMinLon(),
-                                 magnification);
-    size_t endTileX=LonToTileX(boundingBox.GetMaxLon(),
-                               magnification)+1;
-
-    size_t startTileY=LatToTileY(boundingBox.GetMaxLat(),
-                                 magnification);
-    size_t endTileY=LatToTileY(boundingBox.GetMinLat(),
-                               magnification)+1;
+    osmscout::OSMTileId     tileA(boundingBox.GetMinCoord().GetOSMTile(magnification));
+    osmscout::OSMTileId     tileB(boundingBox.GetMaxCoord().GetOSMTile(magnification));
+    uint32_t                startTileX=std::min(tileA.GetX(),tileB.GetX());
+    uint32_t                endTileX=std::max(tileA.GetX(),tileB.GetX());
+    uint32_t                startTileY=std::min(tileA.GetY(),tileB.GetY());
+    uint32_t                endTileY=std::max(tileA.GetY(),tileB.GetY());
 
     if (startTileX>0) {
       startTileX--;
@@ -1525,8 +1547,7 @@ namespace osmscout {
       points.resize(endTileX-startTileX+1);
 
       for (size_t x=startTileX; x<=endTileX; x++) {
-        points[x-startTileX].Set(0,GeoCoord(TileYToLat(y,magnification),
-                                            TileXToLon(x,magnification)));
+        points[x-startTileX].Set(0,OSMTileId(x,y).GetTopLeftCoord(magnification));
       }
 
       size_t transStart;
@@ -1561,8 +1582,7 @@ namespace osmscout {
       points.resize(endTileY-startTileY+1);
 
       for (size_t y=startTileY; y<=endTileY; y++) {
-        points[y-startTileY].Set(0,GeoCoord(TileYToLat(y,magnification),
-                                            TileXToLon(x,magnification)));
+        points[y-startTileY].Set(0,OSMTileId(x,y).GetTopLeftCoord(magnification));
       }
 
       size_t transStart;
