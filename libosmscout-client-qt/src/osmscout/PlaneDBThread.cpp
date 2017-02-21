@@ -39,9 +39,8 @@ static int INITIAL_DATA_RENDERING_TIMEOUT = 10;
 static int UPDATED_DATA_RENDERING_TIMEOUT = 200;
 
 PlaneDBThread::PlaneDBThread(QStringList databaseLookupDirs,
-                             QString stylesheetFilename,
                              QString iconDirectory)
- : DBThread(databaseLookupDirs, stylesheetFilename, iconDirectory),
+ : DBThread(databaseLookupDirs, iconDirectory),
    canvasOverrun(1.5),
    pendingRenderingTimer(this),
    currentImage(NULL),
@@ -260,6 +259,12 @@ void PlaneDBThread::TriggerMapRendering(const RenderMapRequest& request)
         std::list<osmscout::TileRef> tiles;
 
         db->mapService->LookupTiles(projection,tiles);
+        if (tiles.size()>db->mapService->GetCacheSize()){
+          osmscout::log.Debug() << "Increase tile cache size to " << tiles.size();
+          db->mapService->SetCacheSize(tiles.size());
+          // lookup tiles again
+          db->mapService->LookupTiles(projection,tiles);
+        }
         if (!db->mapService->LoadMissingTileDataAsync(searchParameter,*(db->styleConfig),tiles)) {
           osmscout::log.Error() << "*** Loading of data has error or was interrupted";
           continue;
@@ -390,8 +395,13 @@ void PlaneDBThread::DrawMap()
     drawParameter.SetPatternPaths(paths);
     drawParameter.SetDebugData(false);
     drawParameter.SetDebugPerformance(true);
-    drawParameter.SetOptimizeWayNodes(osmscout::TransPolygon::quality);
-    drawParameter.SetOptimizeAreaNodes(osmscout::TransPolygon::quality);
+
+    // optimize process can reduce number of nodes before rendering
+    // it helps for slow renderer backend, but it cost some cpu
+    // it seems that it is ok to disable it for Qt
+    drawParameter.SetOptimizeWayNodes(osmscout::TransPolygon::none);
+    drawParameter.SetOptimizeAreaNodes(osmscout::TransPolygon::none);
+
     drawParameter.SetRenderBackground(false); // we draw background before MapPainter
     drawParameter.SetRenderUnknowns(false); // it is necessary to disable it with multiple databases
     drawParameter.SetRenderSeaLand(renderSea);

@@ -39,12 +39,11 @@
 
 // TODO: watch system memory and evict caches when system is under pressure
 TiledDBThread::TiledDBThread(QStringList databaseLookupDirs,
-                             QString stylesheetFilename,
                              QString iconDirectory,
                              QString tileCacheDirectory,
                              size_t onlineTileCacheSize,
                              size_t offlineTileCacheSize)
- : DBThread(databaseLookupDirs, stylesheetFilename, iconDirectory),
+ : DBThread(databaseLookupDirs, iconDirectory),
    tileCacheDirectory(tileCacheDirectory),
    onlineTileCache(onlineTileCacheSize), // online tiles can be loaded from disk cache easily
    offlineTileCache(offlineTileCacheSize), // render offline tile is expensive
@@ -168,7 +167,7 @@ void TiledDBThread::DrawMap(QPainter &p, const osmscout::GeoCoord center, uint32
 
     // optimize process can reduce number of nodes before rendering
     // it helps for slow renderer backend, but it cost some cpu
-    // it seems that it is better to disable it for mobile devices with slow cpu
+    // it seems that it is ok disable it for Qt
     drawParameter.SetOptimizeWayNodes(osmscout::TransPolygon::none);
     drawParameter.SetOptimizeAreaNodes(osmscout::TransPolygon::none);
 

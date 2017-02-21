@@ -96,12 +96,10 @@ QString StyleError::GetTypeName() const
 
 
 DBThread::DBThread(QStringList databaseLookupDirs,
-                   QString stylesheetFilename,
                    QString iconDirectory)
   : mapManager(std::make_shared<MapManager>(databaseLookupDirs)),
     mapDpi(-1),
     physicalDpi(-1),
-    stylesheetFilename(stylesheetFilename),
     iconDirectory(iconDirectory),
     daylight(true),
     renderSea(true)
@@ -119,11 +117,14 @@ DBThread::DBThread(QStringList databaseLookupDirs,
   QScreen *srn=QGuiApplication::screens().at(0);
 
   physicalDpi = (double)srn->physicalDotsPerInch();
-  qDebug() << "Reported screen DPI: " << physicalDpi;
+  osmscout::log.Debug() << "Reported screen DPI: " << physicalDpi;
   mapDpi = Settings::GetInstance()->GetMapDPI();
-  qDebug() << "Map DPI override: " << mapDpi;
+  osmscout::log.Debug() << "Map DPI override: " << mapDpi;
 
   renderSea = Settings::GetInstance()->GetRenderSea();
+  stylesheetFilename=Settings::GetInstance()->GetStyleSheetAbsoluteFile();
+  stylesheetFlags=Settings::GetInstance()->GetStyleSheetFlags();
+  osmscout::log.Debug() << "Using stylesheet: " << stylesheetFilename.toStdString();
 
   connect(Settings::GetInstance(), SIGNAL(MapDPIChange(double)),
           this, SLOT(onMapDPIChange(double)),
@@ -282,9 +283,68 @@ void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
   databases.clear();
   osmscout::GeoBox boundingBox;
 
-  //stylesheetFilename = resourceDirectory + QDir::separator() + "map-styles" + QDir::separator() + "standard.oss";
-  // TODO: remove last separator, it should be added by renderer (MapPainter*.cpp)
-  //iconDirectory = resourceDirectory + QDir::separator() + "map-icons" + QDir::separator(); // TODO: load icon set for given stylesheet
+#if defined(HAVE_MMAP)
+  if (sizeof(void*)<=4){
+    // we are on 32 bit system probably, we have to be careful with mmap
+    qint64 mmapQuota=1.5 * (1<<30); // 1.5 GiB
+    QStringList mmapFiles;
+    mmapFiles << "bounding.dat" << "router2.dat" << "types.dat" << "textregion.dat" << "textpoi.dat"
+              << "textother.dat" << "areasopt.dat" << "areanode.idx" << "textloc.dat" << "water.idx"
+              << "areaway.idx" << "waysopt.dat" << "intersections.idx" << "router.idx" << "areaarea.idx"
+              << "location.idx" << "intersections.dat";
+
+    for (auto &databaseDirectory:databaseDirectories){
+      for (auto &file:mmapFiles){
+        mmapQuota-=QFileInfo(databaseDirectory, file).size();
+      }
+    }
+    if (mmapQuota<0){
+      qWarning() << "Database is too huge to be mapped";
+    }
+
+    qint64 nodesSize=0;
+    for (auto &databaseDirectory:databaseDirectories){
+      nodesSize+=QFileInfo(databaseDirectory, "nodes.dat").size();
+    }
+    if (mmapQuota-nodesSize<0){
+      qWarning() << "Nodes data files can't be mmapped";
+      databaseParameter.SetNodesDataMMap(false);
+    }else{
+      mmapQuota-=nodesSize;
+    }
+
+    qint64 areasSize=0;
+    for (auto &databaseDirectory:databaseDirectories){
+      areasSize+=QFileInfo(databaseDirectory, "areas.dat").size();
+    }
+    if (mmapQuota-areasSize<0){
+      qWarning() << "Areas data files can't be mmapped";
+      databaseParameter.SetAreasDataMMap(false);
+    }else{
+      mmapQuota-=areasSize;
+    }
+
+    qint64 waysSize=0;
+    for (auto &databaseDirectory:databaseDirectories){
+      waysSize+=QFileInfo(databaseDirectory, "ways.dat").size();
+    }
+    if (mmapQuota-waysSize<0){
+      qWarning() << "Ways data files can't be mmapped";
+      databaseParameter.SetWaysDataMMap(false);
+    }else{
+      mmapQuota-=waysSize;
+    }
+
+    qint64 routerSize=0;
+    for (auto &databaseDirectory:databaseDirectories){
+      routerSize+=QFileInfo(databaseDirectory, "router.dat").size();
+    }
+    if (mmapQuota-routerSize<0){
+      qWarning() << "Router data files can't be mmapped";
+      databaseParameter.SetRouterDataMMap(false);
+    }
+  }
+#endif
 
   for (auto &databaseDirectory:databaseDirectories){
     osmscout::DatabaseRef database = std::make_shared<osmscout::Database>(databaseParameter);
@@ -294,6 +354,11 @@ void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
 
       if (typeConfig) {
         styleConfig=std::make_shared<osmscout::StyleConfig>(typeConfig);
+
+        // setup flag overrides before load
+        for (const auto& flag : stylesheetFlags) {
+            styleConfig->AddFlag(flag.first,flag.second);
+        }
 
         if (!styleConfig->Load(stylesheetFilename.toLocal8Bit().data())) {
           qDebug() << "Cannot load style sheet!";
@@ -367,6 +432,19 @@ void DBThread::ToggleDaylight()
   ReloadStyle();
 
   qDebug() << "Toggling daylight done.";
+}
+
+void DBThread::SetStyleFlag(const QString &key, bool value)
+{
+  {
+    QMutexLocker locker(&mutex);
+
+    if (!isInitializedInternal()) {
+        return;
+    }
+    stylesheetFlags[key.toStdString()] = value;
+  }
+  ReloadStyle();
 }
 
 void DBThread::ReloadStyle(const QString &suffix)
@@ -770,6 +848,53 @@ void DBThread::SearchForLocations(const QString searchPattern, int limit)
   emit searchFinished(searchPattern, /*error*/ false);
 }
 
+void DBThread::requestObjectsOnView(const RenderMapRequest &view)
+{
+  QMutexLocker locker(&mutex);
+  if (!isInitializedInternal()){
+      return; // ignore request if db is not initialized
+  }
+
+  // setup projection for data lookup
+  osmscout::MercatorProjection lookupProjection;
+  lookupProjection.Set(view.coord, /* angle */ 0, view.magnification, mapDpi, view.width*1.5, view.height*1.5);
+  lookupProjection.SetLinearInterpolationUsage(view.magnification.GetLevel() >= 10);
+
+  osmscout::AreaSearchParameter searchParameter;
+  // https://github.com/Framstag/libosmscout/blob/master/Documentation/RenderTuning.txt
+  if (view.magnification.GetLevel() >= 15) {
+    searchParameter.SetMaximumAreaLevel(6);
+  }
+  else {
+    searchParameter.SetMaximumAreaLevel(4);
+  }
+  searchParameter.SetUseMultithreading(true);
+  searchParameter.SetUseLowZoomOptimization(true);
+
+  for (auto &db:databases){
+    if (!db->database->IsOpen() || (!db->styleConfig)) {
+      continue;
+    }
+    std::list<osmscout::TileRef>  tiles;
+    osmscout::MapData             data;
+
+    osmscout::GeoBox dbBox;
+    db->database->GetBoundingBox(dbBox);
+    osmscout::GeoBox lookupBox;
+    lookupProjection.GetDimensions(lookupBox);
+    if (!dbBox.Intersects(lookupBox)){
+      std::cout << "Skip database" << db->path.toStdString() << std::endl;
+      continue;
+    }
+    db->mapService->LookupTiles(lookupProjection,tiles);
+    // load tiles synchronous
+    db->mapService->LoadMissingTileData(searchParameter,*db->styleConfig,tiles);
+    db->mapService->AddTileDataToMapData(tiles,data);
+
+    emit viewObjectsLoaded(view, data);
+  }
+}
+
 bool DBThread::CalculateRoute(const QString databasePath,
                               const osmscout::RoutingProfile& routingProfile,
                               const osmscout::RoutePosition& start,
@@ -1074,6 +1199,7 @@ void DBThread::onRenderSeaChanged(bool b)
 
 osmscout::TypeConfigRef DBThread::GetTypeConfig(const QString databasePath) const
 {
+  QMutexLocker threadLocker(&mutex);
   for (auto &db:databases){
     if (db->path == databasePath){
       return db->database->GetTypeConfig();
@@ -1082,10 +1208,29 @@ osmscout::TypeConfigRef DBThread::GetTypeConfig(const QString databasePath) cons
   return osmscout::TypeConfigRef();
 }
 
+const QMap<QString,bool> DBThread::GetStyleFlags() const
+{
+  QMutexLocker threadLocker(&mutex);
+  QMap<QString,bool> flags;
+  // add flag overrides
+  for (const auto& flag : stylesheetFlags){
+    flags[QString::fromStdString(flag.first)]=flag.second;
+  }
+  // add flags defined by stylesheet
+  for (auto &db:databases){
+    for (const auto& flag : db->styleConfig->GetFlags()){
+      if (!flags.contains(QString::fromStdString(flag.first))){
+        flags[QString::fromStdString(flag.first)]=flag.second;
+      }
+    }
+  }
+  
+  return flags;
+}
+
 static DBThread* dbThreadInstance=NULL;
 
 bool DBThread::InitializeTiledInstance(QStringList databaseLookupDirectory,
-                                       QString stylesheetFilename,
                                        QString iconDirectory,
                                        QString tileCacheDirectory,
                                        size_t onlineTileCacheSize,
@@ -1096,7 +1241,6 @@ bool DBThread::InitializeTiledInstance(QStringList databaseLookupDirectory,
   }
 
   dbThreadInstance=new TiledDBThread(databaseLookupDirectory,
-                                     stylesheetFilename,
                                      iconDirectory,
                                      tileCacheDirectory,
                                      onlineTileCacheSize,
@@ -1106,7 +1250,6 @@ bool DBThread::InitializeTiledInstance(QStringList databaseLookupDirectory,
 }
 
 bool DBThread::InitializePlaneInstance(QStringList databaseLookupDirectory,
-                                       QString stylesheetFilename,
                                        QString iconDirectory)
 {
   if (dbThreadInstance!=NULL) {
@@ -1114,7 +1257,6 @@ bool DBThread::InitializePlaneInstance(QStringList databaseLookupDirectory,
   }
 
   dbThreadInstance=new PlaneDBThread(databaseLookupDirectory,
-                                     stylesheetFilename,
                                      iconDirectory);
 
   return true;

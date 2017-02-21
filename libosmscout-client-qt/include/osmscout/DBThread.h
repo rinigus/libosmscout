@@ -242,8 +242,11 @@ signals:
 
   void searchFinished(const QString searchPattern, bool error);
 
+  void viewObjectsLoaded(const RenderMapRequest&, const osmscout::MapData&);
+
 public slots:
   void ToggleDaylight();
+  void SetStyleFlag(const QString &key, bool value);
   void ReloadStyle(const QString &suffix="");
   void LoadStyle(QString stylesheetFilename,
                  std::unordered_map<std::string,bool> stylesheetFlags,
@@ -284,7 +287,9 @@ public slots:
    * @param limit - suggested limit for count of retrieved entries from one database
    */
   void SearchForLocations(const QString searchPattern, int limit);
-  
+
+  void requestObjectsOnView(const RenderMapRequest&);
+
 protected:
   MapManagerRef                 mapManager;
 
@@ -311,7 +316,7 @@ protected:
 
 protected:
   
-  DBThread(QStringList databaseLookupDirectories, QString stylesheetFilename, QString iconDirectory);
+  DBThread(QStringList databaseLookupDirectories, QString iconDirectory);
 
   virtual ~DBThread();
 
@@ -407,20 +412,20 @@ public:
   const QList<StyleError> &GetStyleErrors() const
   {
       return styleErrors;
-  }  
+  }
+
+  const QMap<QString,bool> GetStyleFlags() const;
 
   static QStringList BuildAdminRegionList(const osmscout::AdminRegionRef& adminRegion,
                                           std::map<osmscout::FileOffset,osmscout::AdminRegionRef> regionMap);
   
   static bool InitializeTiledInstance(QStringList databaseDirectory, 
-                                      QString stylesheetFilename, 
                                       QString iconDirectory,
                                       QString tileCacheDirectory,
                                       size_t onlineTileCacheSize = 20, 
                                       size_t offlineTileCacheSize = 50);
 
   static bool InitializePlaneInstance(QStringList databaseDirectory, 
-                                      QString stylesheetFilename, 
                                       QString iconDirectory);
   
   static DBThread* GetInstance();
