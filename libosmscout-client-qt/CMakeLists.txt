@@ -18,6 +18,7 @@ set(HEADER_FILES
     #include/osmscout/private/Config.h
     #include/osmscout/ClientQtFeatures.h
     include/osmscout/DBThread.h
+    include/osmscout/FileDownloader.h
     include/osmscout/InputHandler.h
     include/osmscout/LocationEntry.h
     include/osmscout/LocationInfoModel.h
@@ -46,6 +47,7 @@ set(HEADER_FILES
 
 set(SOURCE_FILES
     src/osmscout/DBThread.cpp
+    src/osmscout/FileDownloader.cpp
     src/osmscout/InputHandler.cpp
     src/osmscout/LocationEntry.cpp
     src/osmscout/LocationInfoModel.cpp
@@ -95,5 +97,5 @@ install(TARGETS osmscout_client_qt
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/osmscout DESTINATION include FILES_MATCHING PATTERN "*.h" PATTERN "private" EXCLUDE)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/osmscout DESTINATION include FILES_MATCHING PATTERN "*.h" PATTERN "private/Config.h" EXCLUDE)
 install(FILES ${OSMSCOUT_BASE_DIR_BUILD}/include/osmscout/ClientQtFeatures.h DESTINATION include/osmscout)

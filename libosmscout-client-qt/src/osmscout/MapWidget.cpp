@@ -41,9 +41,9 @@ MapWidget::MapWidget(QQuickItem* parent)
     
     DBThread *dbThread=DBThread::GetInstance();
     
-    mapDpi = Settings::GetInstance()->GetMapDPI();
+    mapDpi = dbThread->GetSettings()->GetMapDPI();
 
-    connect(Settings::GetInstance(), SIGNAL(MapDPIChange(double)),
+    connect(dbThread->GetSettings().get(), SIGNAL(MapDPIChange(double)),
             this, SLOT(onMapDPIChange(double)));
   
     tapRecognizer.setPhysicalDpi(dbThread->GetPhysicalDpi());
@@ -313,6 +313,14 @@ bool MapWidget::isInDatabaseBoundingBox(double lat, double lon)
   }
   osmscout::GeoCoord coord(lat, lon);
   return resp.boundingBox.Includes(coord);
+}
+
+QPointF MapWidget::screenPosition(double lat, double lon)
+{
+    double x;
+    double y;
+    getProjection().GeoToPixel(osmscout::GeoCoord(lat, lon), x, y);
+    return QPointF(x, y);
 }
 
 void MapWidget::zoom(double zoomFactor)

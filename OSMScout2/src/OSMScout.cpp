@@ -37,6 +37,8 @@
 // Application theming
 #include "Theme.h"
 
+#include "AppSettings.h"
+
 #include <osmscout/util/Logger.h>
 
 Q_DECLARE_METATYPE(osmscout::TileRef)
@@ -49,6 +51,25 @@ static QObject *ThemeProvider(QQmlEngine *engine, QJSEngine *scriptEngine)
     Theme *theme = new Theme();
 
     return theme;
+}
+
+#define DEBUG   4
+#define INFO    3
+#define WARNING 2
+#define ERROR   1
+
+static int LogEnv(QString env)
+{
+  if (env.toUpper()=="DEBUG"){
+    return DEBUG;
+  }
+  if (env.toUpper()=="INFO"){
+    return INFO;
+  }
+  if (env.toUpper()=="ERROR"){
+    return ERROR;
+  }
+  return WARNING;
 }
 
 int main(int argc, char* argv[])
@@ -74,18 +95,24 @@ int main(int argc, char* argv[])
   qmlRegisterType<RouteStep>("net.sf.libosmscout.map", 1, 0, "RouteStep");
   qmlRegisterType<RoutingListModel>("net.sf.libosmscout.map", 1, 0, "RoutingListModel");
   qmlRegisterType<QmlSettings>("net.sf.libosmscout.map", 1, 0, "Settings");
+  qmlRegisterType<AppSettings>("net.sf.libosmscout.map", 1, 0, "AppSettings");
   qmlRegisterType<AvailableMapsModel>("net.sf.libosmscout.map", 1, 0, "AvailableMapsModel");
   qmlRegisterType<MapDownloadsModel>("net.sf.libosmscout.map", 1, 0, "MapDownloadsModel");
 
   qmlRegisterSingletonType<Theme>("net.sf.libosmscout.map", 1, 0, "Theme", ThemeProvider);
 
-  osmscout::log.Debug(false);
-  osmscout::log.Info(false);
+  // init logger by system system variable
+  int logEnv=LogEnv(QProcessEnvironment::systemEnvironment().value("OSMSCOUT_LOG", "WARNING"));
+  osmscout::log.Debug(logEnv>=DEBUG);
+  osmscout::log.Info(logEnv>=INFO);
+  osmscout::log.Warn(logEnv>=WARNING);
+  osmscout::log.Error(logEnv>=ERROR);
 
+  SettingsRef settings=std::make_shared<Settings>();
   // load online tile providers
-  Settings::GetInstance()->loadOnlineTileProviders(
+  settings->loadOnlineTileProviders(
     ":/resources/online-tile-providers.json");
-  Settings::GetInstance()->loadMapProviders(
+  settings->loadMapProviders(
     ":/resources/map-providers.json");
 
   QThread thread;
@@ -106,8 +133,8 @@ int main(int argc, char* argv[])
 
   if (cmdLineArgs.size() > 2){
     QFileInfo stylesheetFile(cmdLineArgs.at(2));
-    Settings::GetInstance()->SetStyleSheetDirectory(stylesheetFile.dir().path());
-    Settings::GetInstance()->SetStyleSheetFile(stylesheetFile.fileName());
+    settings->SetStyleSheetDirectory(stylesheetFile.dir().path());
+    settings->SetStyleSheetFile(stylesheetFile.fileName());
   }
 
   QString iconDirectory;
@@ -126,6 +153,7 @@ int main(int argc, char* argv[])
   if (!DBThread::InitializeTiledInstance(
           mapLookupDirectories,
           iconDirectory,
+          renderingSettings,
           cacheLocation + QDir::separator() + "OSMScoutTileCache",
           / onlineTileCacheSize  / 100,
           / offlineTileCacheSize / 200
@@ -136,7 +164,8 @@ int main(int argc, char* argv[])
 */
   if (!DBThread::InitializePlaneInstance(
           mapLookupDirectories,
-          iconDirectory
+          iconDirectory,
+          settings
       )) {
     std::cerr << "Cannot initialize DBThread" << std::endl;
     return 1;
@@ -159,7 +188,6 @@ int main(int argc, char* argv[])
   thread.wait();
 
   DBThread::FreeInstance();
-  Settings::FreeInstance();
 
   return result;
 }
