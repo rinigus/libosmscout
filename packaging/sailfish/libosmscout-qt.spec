@@ -2,7 +2,7 @@
 Name: libosmscout-qt
 
 Summary: libosmscout qt libraries
-Version: 0.0.git.20170221
+Version: 0.0.git.20170326
 Release: 1
 Group: Qt/Qt
 License: LGPL
