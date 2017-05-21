@@ -32,6 +32,7 @@ set(HEADER_FILES
     include/osmscout/util/Projection.h
     include/osmscout/util/StopClock.h
     include/osmscout/util/String.h
+    include/osmscout/util/TagErrorReporter.h
     include/osmscout/util/Tiling.h
     include/osmscout/util/Transformation.h
     include/osmscout/util/WorkQueue.h
@@ -112,6 +113,7 @@ set(SOURCE_FILES
     src/osmscout/util/Tiling.cpp
     src/osmscout/util/Transformation.cpp
     src/osmscout/util/WorkQueue.cpp
+    src/osmscout/util/TagErrorReporter.cpp
     src/osmscout/Area.cpp
     src/osmscout/AreaDataFile.cpp
     src/osmscout/AreaAreaIndex.cpp
@@ -171,6 +173,9 @@ target_include_directories(osmscout PRIVATE include ${CMAKE_CURRENT_BINARY_DIR}/
 if(MARISA_FOUND)
     target_include_directories(osmscout PRIVATE ${MARISA_INCLUDE_DIRS})
     target_link_libraries(osmscout ${MARISA_LIBRARIES})
+endif()
+if (ICONV_FOUND)
+  target_link_libraries(osmscout ${ICONV_LIBRARIES})
 endif()
 target_compile_definitions(osmscout PRIVATE -DOSMSCOUT_EXPORT_SYMBOLS)
 install(TARGETS osmscout
