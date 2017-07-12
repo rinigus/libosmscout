@@ -198,6 +198,21 @@ namespace osmscout {
                    Database& database);
     };
 
+    /**
+   * \ingroup Routing
+   * Evaluates destination tags, hinting at the destination of a way
+   */
+    class OSMSCOUT_API DestinationPostprocessor : public Postprocessor
+    {
+    public:
+      DestinationPostprocessor();
+
+      bool Process(const RoutePostprocessor& postprocessor,
+                   const RoutingProfile& profile,
+                   RouteDescription& description,
+                   Database& database);
+    };
+
     class OSMSCOUT_API MaxSpeedPostprocessor : public RoutePostprocessor::Postprocessor
     {
     public:
@@ -312,10 +327,8 @@ namespace osmscout {
                                   size_t nodeIndex,
                                   const ObjectFileRef& object) const;
 
-    void GetCoordinates(const ObjectFileRef& object,
-                        size_t nodeIndex,
-                        double& lat,
-                        double& lon) const;
+    GeoCoord GetCoordinates(const ObjectFileRef& object,
+                            size_t nodeIndex) const;
 
     bool PostprocessRouteDescription(RouteDescription& description,
                                      const RoutingProfile& profile,

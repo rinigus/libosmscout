@@ -53,6 +53,11 @@ namespace osmscout {
     // no code
   }
 
+  POIVisitor::~POIVisitor()
+  {
+    // no code
+  }
+
   LocationVisitor::~LocationVisitor()
   {
     // no code
@@ -71,12 +76,14 @@ namespace osmscout {
   }
 
   bool AddressListVisitor::Visit(const AdminRegion& adminRegion,
+                                 const PostalArea& postalArea,
                                  const Location& location,
                                  const Address& address)
   {
     AddressResult result;
 
     result.adminRegion=std::make_shared<AdminRegion>(adminRegion);
+    result.postalArea=std::make_shared<PostalArea>(postalArea);
     result.location=std::make_shared<Location>(location);
     result.address=std::make_shared<Address>(address);
 
@@ -90,12 +97,14 @@ namespace osmscout {
   Place::Place(const ObjectFileRef& object,
                const FeatureValueBufferRef objectFeatures,
                const AdminRegionRef& adminRegion,
+               const PostalAreaRef& postalArea,
                const POIRef& poi,
                const LocationRef& location,
                const AddressRef& address)
   : object(object),
     objectFeatures(objectFeatures),
     adminRegion(adminRegion),
+    postalArea(postalArea),
     poi(poi),
     location(location),
     address(address)
@@ -103,6 +112,10 @@ namespace osmscout {
     // no oce
   }
 
+  /**
+   * Returns a textual representation of the place in
+   * @return
+   */
   std::string Place::GetDisplayString() const
   {
     std::ostringstream stream;
@@ -111,7 +124,7 @@ namespace osmscout {
     stream.imbue(std::locale());
 
     if (poi) {
-      stream << poi->name;
+      stream << UTF8StringToLocaleString(poi->name);
       empty=false;
     }
 
@@ -120,7 +133,7 @@ namespace osmscout {
         stream << ", ";
       }
 
-      stream << location->name << " " << address->name;
+      stream << UTF8StringToLocaleString(location->name) << " " << UTF8StringToLocaleString(address->name);
       empty=false;
     }
     else if (location) {
@@ -128,7 +141,7 @@ namespace osmscout {
         stream << ", ";
       }
 
-      stream << location->name;
+      stream << UTF8StringToLocaleString(location->name);
       empty=false;
     }
     else if (address) {
@@ -136,7 +149,7 @@ namespace osmscout {
         stream << ", ";
       }
 
-      stream << address->name;
+      stream << UTF8StringToLocaleString(address->name);
       empty=false;
     }
 
@@ -145,11 +158,15 @@ namespace osmscout {
         stream << ", ";
       }
 
+      if (postalArea) {
+        stream << UTF8StringToLocaleString(postalArea->name) << " ";
+      }
+
       if (!adminRegion->aliasName.empty()) {
-        stream << adminRegion->aliasName;
+        stream << UTF8StringToLocaleString(adminRegion->aliasName);
       }
       else {
-        stream << adminRegion->name;
+        stream << UTF8StringToLocaleString(adminRegion->name);
       }
     }
 

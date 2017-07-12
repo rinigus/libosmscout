@@ -21,27 +21,29 @@
 #include <osmscout/MapService.h>
 
 #include <osmscout/DBThread.h>
-#include <osmscout/TiledDBThread.h>
-#include <osmscout/PlaneDBThread.h>
 #include <osmscout/private/Config.h>
 #include "osmscout/MapManager.h"
+
 #ifdef OSMSCOUT_HAVE_LIB_MARISA
 #include <osmscout/TextSearchIndex.h>
 #endif
 
-DBThread::DBThread(QStringList databaseLookupDirs,
+#include <osmscout/util/Logger.h>
+
+DBThread::DBThread(QThread *backgroundThread,
+                   QString basemapLookupDirectory,
+                   QStringList databaseLookupDirs,
                    QString iconDirectory,
                    SettingsRef settings)
-  : mapManager(std::make_shared<MapManager>(databaseLookupDirs)),
+  : backgroundThread(backgroundThread),
+    mapManager(std::make_shared<MapManager>(databaseLookupDirs)),
+    basemapLookupDirectory(basemapLookupDirectory),
     settings(settings),
     mapDpi(-1),
     physicalDpi(-1),
     lock(QReadWriteLock::Recursive),
     iconDirectory(iconDirectory),
-    daylight(true),
-    renderSea(true),
-    fontName("sans-serif"),
-    fontSize(2.0)
+    daylight(true)
 {
   // fix Qt signals with uint32_t on x86_64:
   //
@@ -60,21 +62,12 @@ DBThread::DBThread(QStringList databaseLookupDirs,
   mapDpi = settings->GetMapDPI();
   osmscout::log.Debug() << "Map DPI override: " << mapDpi;
 
-  renderSea=settings->GetRenderSea();
-  fontName=settings->GetFontName();
-  fontSize=settings->GetFontSize();
   stylesheetFilename=settings->GetStyleSheetAbsoluteFile();
   stylesheetFlags=settings->GetStyleSheetFlags();
   osmscout::log.Debug() << "Using stylesheet: " << stylesheetFilename.toStdString();
 
   connect(settings.get(), SIGNAL(MapDPIChange(double)),
           this, SLOT(onMapDPIChange(double)),
-          Qt::QueuedConnection);
-  connect(settings.get(), SIGNAL(FontNameChanged(const QString)),
-          this, SLOT(onFontNameChanged(const QString)),
-          Qt::QueuedConnection);
-  connect(settings.get(), SIGNAL(FontSizeChanged(double)),
-          this, SLOT(onFontSizeChanged(double)),
           Qt::QueuedConnection);
 
   connect(mapManager.get(), SIGNAL(databaseListChanged(QList<QDir>)),
@@ -84,23 +77,19 @@ DBThread::DBThread(QStringList databaseLookupDirs,
 
 DBThread::~DBThread()
 {
-  osmscout::log.Debug() << "DBThread::~TiledDBThread()";
+  QWriteLocker locker(&lock);
+  osmscout::log.Debug() << "DBThread::~DBThread()";
+
+  if (basemapDatabase) {
+    basemapDatabase->Close();
+    basemapDatabase=NULL;
+  }
 
   for (auto db:databases){
     db->close();
   }
   databases.clear();
-}
-
-
-bool DBThread::AssureRouter(osmscout::Vehicle vehicle)
-{
-  for (auto db:databases){
-    if (!db->AssureRouter(vehicle, routerParameter)){
-      return false;
-    }
-  }
-  return true;
+  backgroundThread->quit(); // deleteLater() is invoked when thread is finished
 }
 
 /**
@@ -205,23 +194,21 @@ DatabaseCoverage DBThread::databaseCoverage(const osmscout::Magnification &magni
   return DatabaseCoverage::Outside;
 }
 
-void DBThread::TileStateCallback(const osmscout::TileRef& /*changedTile*/)
-{
-
-}
-
-bool DBThread::InitializeDatabases()
+void DBThread::Initialize()
 {
   QReadLocker locker(&lock);
   qDebug() << "Initialize databases";
   mapManager->lookupDatabases();
-
-  return true;
 }
 
 void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
 {
   QWriteLocker locker(&lock);
+
+  if (basemapDatabase) {
+    basemapDatabase->Close();
+    basemapDatabase=NULL;
+  }
 
   for (auto db:databases){
     db->close();
@@ -292,6 +279,18 @@ void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
   }
 #endif
 
+  if (!basemapLookupDirectory.isEmpty()) {
+    osmscout::BasemapDatabaseRef database = std::make_shared<osmscout::BasemapDatabase>(basemapDatabaseParameter);
+
+    if (database->Open(basemapLookupDirectory.toLocal8Bit().data())) {
+      basemapDatabase=database;
+      qDebug() << "Basemap found and loaded!";
+    }
+    else {
+      qWarning() << "Cannot open basemap database '" << basemapLookupDirectory << "'!";
+    }
+  }
+
   for (auto &databaseDirectory:databaseDirectories){
     osmscout::DatabaseRef database = std::make_shared<osmscout::Database>(databaseParameter);
     osmscout::StyleConfigRef styleConfig;
@@ -307,17 +306,17 @@ void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
         }
 
         if (!styleConfig->Load(stylesheetFilename.toLocal8Bit().data())) {
-          qDebug() << "Cannot load style sheet!";
+          qWarning() << "Cannot load style sheet '" << stylesheetFilename << "'!";
           styleConfig=NULL;
         }
       }
       else {
-        qDebug() << "TypeConfig invalid!";
+        qWarning() << "TypeConfig invalid!";
         styleConfig=NULL;
       }
     }
     else {
-      qWarning() << "Cannot open database!";
+      qWarning() << "Cannot open database '" << databaseDirectory.absolutePath() << "'!";
       continue;
     }
 
@@ -327,32 +326,18 @@ void DBThread::onDatabaseListChanged(QList<QDir> databaseDirectories)
       continue;
     }
 
-    osmscout::MapService::TileStateCallback callback=[this](const osmscout::TileRef& tile) {TileStateCallback(tile);};
     osmscout::MapServiceRef mapService = std::make_shared<osmscout::MapService>(database);
-    osmscout::MapService::CallbackId callbackId=mapService->RegisterTileStateCallback(callback);
 
-    databases << std::make_shared<DBInstance>(databaseDirectory.absolutePath(),
-                                              database,
-                                              std::make_shared<osmscout::LocationService>(database),
-                                              mapService,
-                                              callbackId,
-                                              std::make_shared<QBreaker>(),
-                                              styleConfig);
+    databases.push_back(std::make_shared<DBInstance>(databaseDirectory.absolutePath(),
+                                                     database,
+                                                     std::make_shared<osmscout::LocationService>(database),
+                                                     mapService,
+                                                     std::make_shared<QBreaker>(),
+                                                     styleConfig));
   }
 
   emit databaseLoadFinished(boundingBox);
   emit stylesheetFilenameChanged();
-}
-
-void DBThread::Finalize()
-{
-  QWriteLocker locker(&lock);
-  qDebug() << "Finalize";
-
-  for (auto db:databases){
-    db->close();
-  }
-  databases.clear();
 }
 
 void DBThread::CancelCurrentDataLoading()
@@ -378,6 +363,14 @@ void DBThread::ToggleDaylight()
   ReloadStyle();
 
   qDebug() << "Toggling daylight done.";
+}
+
+void DBThread::onMapDPIChange(double dpi)
+{
+  {
+    QWriteLocker locker(&lock);
+    mapDpi = dpi;
+  }
 }
 
 void DBThread::SetStyleFlag(const QString &key, bool value)
@@ -418,9 +411,7 @@ void DBThread::LoadStyle(QString stylesheetFilename,
     qWarning()<<"Failed to load stylesheet"<<(stylesheetFilename+suffix);
     emit styleErrorsChanged();
   }
-  InvalidateVisualCache();
   emit stylesheetFilenameChanged();
-  emit Redraw();
 }
 
 bool DBThread::GetObjectDetails(DBInstanceRef db,
@@ -696,203 +687,6 @@ void DBThread::SearchForLocations(const QString searchPattern, int limit)
   emit searchFinished(searchPattern, /*error*/ false);
 }
 
-bool DBThread::CalculateRoute(const QString databasePath,
-                              const osmscout::RoutingProfile& routingProfile,
-                              const osmscout::RoutePosition& start,
-                              const osmscout::RoutePosition target,
-                              osmscout::RouteData& route)
-{
-  QReadLocker locker(&lock);
-
-  DBInstanceRef database;
-  for (auto &db:databases){
-    if (db->path==databasePath){
-      database=db;
-      break;
-    }
-  }
-  if (!database){
-    return false;
-  }
-
-  if (!database->AssureRouter(routingProfile.GetVehicle(), routerParameter)) {
-    return false;
-  }
-
-  osmscout::RoutingResult    result;
-  osmscout::RoutingParameter parameter;
-
-  result=database->router->CalculateRoute(routingProfile,
-                                          start,
-                                          target,
-                                          parameter);
-
-  bool success=result.Success();
-
-  route=std::move(result.GetRoute());
-
-  return success;
-}
-
-bool DBThread::TransformRouteDataToRouteDescription(const QString databasePath,
-                                                    const osmscout::RoutingProfile& routingProfile,
-                                                    const osmscout::RouteData& data,
-                                                    osmscout::RouteDescription& description,
-                                                    const std::string& start,
-                                                    const std::string& target)
-{
-  QReadLocker locker(&lock);
-
-  DBInstanceRef database;
-  for (auto &db:databases){
-    if (db->path==databasePath){
-      database=db;
-      break;
-    }
-  }
-  if (!database){
-    return false;
-  }
-
-  if (!database->AssureRouter(routingProfile.GetVehicle(), routerParameter)) {
-    return false;
-  }
-
-  if (!database->router->TransformRouteDataToRouteDescription(data,description)) {
-    return false;
-  }
-
-  osmscout::TypeConfigRef typeConfig=database->router->GetTypeConfig();
-
-  std::list<osmscout::RoutePostprocessor::PostprocessorRef> postprocessors;
-
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::DistanceAndTimePostprocessor>());
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::StartPostprocessor>(start));
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::TargetPostprocessor>(target));
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::WayNamePostprocessor>());
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::CrossingWaysPostprocessor>());
-  postprocessors.push_back(std::make_shared<osmscout::RoutePostprocessor::DirectionPostprocessor>());
-
-  osmscout::RoutePostprocessor::InstructionPostprocessorRef instructionProcessor=std::make_shared<osmscout::RoutePostprocessor::InstructionPostprocessor>();
-
-  instructionProcessor->AddMotorwayType(typeConfig->GetTypeInfo("highway_motorway"));
-  instructionProcessor->AddMotorwayLinkType(typeConfig->GetTypeInfo("highway_motorway_link"));
-  instructionProcessor->AddMotorwayType(typeConfig->GetTypeInfo("highway_motorway_trunk"));
-  instructionProcessor->AddMotorwayType(typeConfig->GetTypeInfo("highway_trunk"));
-  instructionProcessor->AddMotorwayLinkType(typeConfig->GetTypeInfo("highway_trunk_link"));
-  instructionProcessor->AddMotorwayType(typeConfig->GetTypeInfo("highway_motorway_primary"));
-  postprocessors.push_back(instructionProcessor);
-
-  if (!routePostprocessor.PostprocessRouteDescription(description,
-                                                      routingProfile,
-                                                      *(database->database),
-                                                      postprocessors)) {
-    return false;
-  }
-
-  return true;
-}
-
-bool DBThread::TransformRouteDataToWay(const QString databasePath,
-                                       osmscout::Vehicle vehicle,
-                                       const osmscout::RouteData& data,
-                                       osmscout::Way& way)
-{
-  QReadLocker locker(&lock);
-
-  DBInstanceRef database;
-  for (auto &db:databases){
-    if (db->path==databasePath){
-      database=db;
-      break;
-    }
-  }
-  if (!database){
-    return false;
-  }
-
-
-  if (!database->AssureRouter(vehicle, routerParameter)) {
-    return false;
-  }
-
-  return database->router->TransformRouteDataToWay(data,way);
-}
-
-void DBThread::ClearRoute()
-{
-  emit Redraw();
-}
-
-void DBThread::AddRoute(const osmscout::Way& /*way*/)
-{
-  emit Redraw();
-}
-
-osmscout::RoutePosition DBThread::GetClosestRoutableNode(const QString databasePath,
-                                                         const osmscout::ObjectFileRef& refObject,
-                                                         const osmscout::RoutingProfile& routingProfile,
-                                                         double radius)
-{
-  QReadLocker locker(&lock);
-  osmscout::RoutePosition position;
-
-  DBInstanceRef database;
-  for (auto &db:databases){
-    if (db->path==databasePath){
-      database=db;
-      break;
-    }
-  }
-  if (!database){
-    return position;
-  }
-
-  if (!database->AssureRouter(routingProfile.GetVehicle(), routerParameter)) {
-    return position;
-  }
-
-  if (refObject.GetType()==osmscout::refNode) {
-    osmscout::NodeRef node;
-
-    if (!database->database->GetNodeByOffset(refObject.GetFileOffset(), node)) {
-      return position;
-    }
-
-    return database->router->GetClosestRoutableNode(node->GetCoords(),
-                                                    routingProfile,
-                                                    radius);
-  }
-  else if (refObject.GetType()==osmscout::refArea) {
-    osmscout::AreaRef area;
-
-    if (!database->database->GetAreaByOffset(refObject.GetFileOffset(), area)) {
-      return position;
-    }
-
-    osmscout::GeoCoord center;
-
-    area->GetCenter(center);
-
-    return database->router->GetClosestRoutableNode(center,
-                                                    routingProfile,
-                                                    radius);
-  }
-  else if (refObject.GetType()==osmscout::refWay) {
-    osmscout::WayRef way;
-
-    if (!database->database->GetWayByOffset(refObject.GetFileOffset(), way)) {
-      return position;
-    }
-
-    return database->router->GetClosestRoutableNode(way->nodes[0].GetCoord(),
-                                                    routingProfile,
-                                                    radius);
-  }
-
-  return position;
-}
-
 QStringList DBThread::BuildAdminRegionList(const osmscout::AdminRegionRef& adminRegion,
                                            std::map<osmscout::FileOffset,osmscout::AdminRegionRef> regionMap)
 {
@@ -949,7 +743,7 @@ void DBThread::requestLocationDescription(const osmscout::GeoCoord location)
 
     std::map<osmscout::FileOffset,osmscout::AdminRegionRef> regionMap;
     if (!db->locationService->DescribeLocationByAddress(location, description)) {
-      std::cerr << "Error during generation of location description" << std::endl;
+      osmscout::log.Error() << "Error during generation of location description";
       continue;
     }
 
@@ -962,7 +756,7 @@ void DBThread::requestLocationDescription(const osmscout::GeoCoord location)
     }
 
     if (!db->locationService->DescribeLocationByPOI(location, description)) {
-      std::cerr << "Error during generation of location description" << std::endl;
+      osmscout::log.Error() << "Error during generation of location description";
       continue;
     }
 
@@ -976,57 +770,6 @@ void DBThread::requestLocationDescription(const osmscout::GeoCoord location)
   }
 
   emit locationDescriptionFinished(location);
-}
-
-void DBThread::onMapDPIChange(double dpi)
-{
-  {
-    QWriteLocker locker(&lock);
-    mapDpi = dpi;
-  }
-  InvalidateVisualCache();
-  emit Redraw();
-}
-
-void DBThread::onRenderSeaChanged(bool b)
-{
-  {
-    QWriteLocker locker(&lock);
-    renderSea = b;
-  }
-  InvalidateVisualCache();
-  emit Redraw();
-}
-
-void DBThread::onFontNameChanged(const QString fontName)
-{
-  {
-    QWriteLocker locker(&lock);
-    this->fontName=fontName;
-  }
-  InvalidateVisualCache();
-  emit Redraw();
-}
-
-void DBThread::onFontSizeChanged(double fontSize)
-{
-  {
-    QWriteLocker locker(&lock);
-    this->fontSize=fontSize;
-  }
-  InvalidateVisualCache();
-  emit Redraw();
-}
-
-osmscout::TypeConfigRef DBThread::GetTypeConfig(const QString databasePath) const
-{
-  QReadLocker locker(&lock);
-  for (auto &db:databases){
-    if (db->path == databasePath){
-      return db->database->GetTypeConfig();
-    }
-  }
-  return osmscout::TypeConfigRef();
 }
 
 const QMap<QString,bool> DBThread::GetStyleFlags() const
@@ -1045,12 +788,18 @@ const QMap<QString,bool> DBThread::GetStyleFlags() const
       }
     }
   }
-  
+
   return flags;
 }
 
 void DBThread::RunJob(DBJob *job)
 {
   QReadLocker *locker=new QReadLocker(&lock);
-  job->Run(databases,locker);
+  job->Run(basemapDatabase,databases,locker);
+}
+
+void DBThread::RunSynchronousJob(SynchronousDBJob job)
+{
+  QReadLocker locker(&lock);
+  job(databases);
 }

@@ -31,7 +31,7 @@ before_install:
 
 before_script:
   - . setupAutoconf.sh
-  
+
 script:
   - $TRAVIS_BUILD_DIR/ci/travis/build.sh
 

@@ -17,6 +17,8 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#include <iostream>
+
 // Qt includes
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -117,6 +119,14 @@ int main(int argc, char* argv[])
   QStringList mapLookupDirectories;
   if (cmdLineArgs.size() > 1){
     mapLookupDirectories << cmdLineArgs.at(1);
+
+    QDir dir(cmdLineArgs.at(1));
+
+    if (dir.cdUp()) {
+      if (dir.cd("world")) {
+        builder.WithBasemapLookupDirectory(dir.absolutePath());
+      }
+    }
   }
 
   if (cmdLineArgs.size() > 2){

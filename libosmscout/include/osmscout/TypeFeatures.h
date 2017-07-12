@@ -272,6 +272,12 @@ namespace osmscout {
     bool operator==(const FeatureValue& other) const;
   };
 
+  /**
+   * The location feature stores the location of an (normally) node or area. Even the data is not stored
+   * the location feature checks that a street or place and an house number is stored on the object.
+   *
+   * So in effect it stores the location part of objects that have an address.
+   */
   class OSMSCOUT_API LocationFeature : public Feature
   {
   private:
@@ -299,6 +305,12 @@ namespace osmscout {
                FeatureValueBuffer& buffer) const;
   };
 
+  /**
+   * The address feature stores the house number of an (normally) node or area. Even the data is not stored
+   * the address feature checks that a street or place and an house number is stored on the object.
+   *
+   * So in effect it stores the house number part of objects that have an address.
+   */
   class OSMSCOUT_API AddressFeatureValue : public FeatureValue
   {
   private:
@@ -1341,6 +1353,8 @@ namespace osmscout {
   {
   private:
     TagId tagDestination;
+    TagId tagDestinationRef;
+    TagId tagDestinationForward;
 
   public:
     /** Name of this feature */
@@ -1789,6 +1803,7 @@ namespace osmscout {
   typedef FeatureValueReader<AdminLevelFeature,AdminLevelFeatureValue>             AdminLevelFeatureValueReader;
   typedef FeatureValueReader<PostalCodeFeature,PostalCodeFeatureValue>             PostalCodeFeatureValueReader;
   typedef FeatureValueReader<IsInFeature,IsInFeatureValue>                         IsInFeatureValueReader;
+  typedef FeatureValueReader<DestinationFeature,DestinationFeatureValue>           DestinationFeatureValueReader;
 
   template <class F, class V>
   class FeatureLabelReader

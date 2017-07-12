@@ -300,11 +300,13 @@ namespace osmscout {
 
   struct PartialStyleBase
   {
+    virtual ~PartialStyleBase() {}
+
     virtual void SetBoolValue(int attribute, bool value) = 0;
     virtual void SetStringValue(int attribute, const std::string& value) = 0;
     virtual void SetColorValue(int attribute, const Color& value) = 0;
     virtual void SetMagnificationValue(int attribute, const Magnification& value) = 0;
-    virtual void SetDoubleValue(int attribute, const double value) = 0;
+    virtual void SetDoubleValue(int attribute, double value) = 0;
     virtual void SetDoubleArrayValue(int attribute, const std::vector<double>& value) = 0;
     virtual void SetSymbolValue(int attribute, const SymbolRef& value) = 0;
     virtual void SetIntValue(int attribute, int value) = 0;
@@ -1074,7 +1076,7 @@ namespace osmscout {
 
     void SetLabelValue(int attribute, const LabelProviderRef& value);
     void SetColorValue(int attribute, const Color& value);
-    void SetDoubleValue(int attribute, const double value);
+    void SetDoubleValue(int attribute, double value);
     void SetUIntValue(int attribute, size_t value);
 
     PathShieldStyle& SetLabel(const LabelProviderRef& label);
@@ -1308,14 +1310,27 @@ namespace osmscout {
    */
   class OSMSCOUT_MAP_API DrawPrimitive
   {
+  public:
+    enum class ProjectionMode {
+      MAP,
+      GROUND
+    };
+
   private:
+    ProjectionMode projectionMode;
     FillStyleRef   fillStyle;
     BorderStyleRef borderStyle;
 
   public:
-    DrawPrimitive(const FillStyleRef& fillStyle,
+    DrawPrimitive(ProjectionMode projectionMode,
+                  const FillStyleRef& fillStyle,
                   const BorderStyleRef& borderStyle);
     virtual ~DrawPrimitive();
+
+    inline ProjectionMode GetProjectionMode() const
+    {
+      return projectionMode;
+    }
 
     inline const FillStyleRef& GetFillStyle() const
     {
@@ -1345,7 +1360,8 @@ namespace osmscout {
     std::list<Vertex2D> coords;
 
   public:
-    PolygonPrimitive(const FillStyleRef& fillStyle,
+    PolygonPrimitive(ProjectionMode projectionMode,
+                     const FillStyleRef& fillStyle,
                      const BorderStyleRef& borderStyle);
 
     void AddCoord(const Vertex2D& coord);
@@ -1375,7 +1391,8 @@ namespace osmscout {
     double   height;
 
   public:
-    RectanglePrimitive(const Vertex2D& topLeft,
+    RectanglePrimitive(ProjectionMode projectionMode,
+                       const Vertex2D& topLeft,
                        double width,
                        double height,
                        const FillStyleRef& fillStyle,
@@ -1415,7 +1432,8 @@ namespace osmscout {
     double   radius;
 
   public:
-    CirclePrimitive(const Vertex2D& center,
+    CirclePrimitive(ProjectionMode projectionMode,
+                    const Vertex2D& center,
                     double radius,
                     const FillStyleRef& fillStyle,
                     const BorderStyleRef& borderStyle);

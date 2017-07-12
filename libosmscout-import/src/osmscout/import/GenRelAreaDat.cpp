@@ -35,8 +35,8 @@ namespace osmscout {
 
   const char*           RelAreaDataGenerator::RELAREA_TMP="relarea.tmp";
   const char*           RelAreaDataGenerator::WAYAREABLACK_DAT="wayareablack.dat";
-  static const uint64_t MAX_WAYS=1000;
-  static const uint64_t MAX_COORDS=100000;
+  static const uint64_t MAX_WAYS=1500;
+  static const uint64_t MAX_COORDS=150000;
 
   /**
     Find a top level role.
@@ -625,6 +625,8 @@ namespace osmscout {
 
     // Initial collection of all relation and way ids of the top level relation
 
+    bool hasMaxWayError = false;
+
     for (const auto& member : rawRelation.members) {
       if (member.type==RawRelation::memberWay &&
           (member.role=="inner" ||
@@ -633,11 +635,8 @@ namespace osmscout {
         wayIds.insert(member.id);
 
         if (wayIds.size()>MAX_WAYS) {
-          progress.Error("Relation "+
-                         NumberToString(rawRelation.GetId())+" "+name+
-                         " references too many ways (" +
-                         NumberToString(wayIds.size())+")");
-          return false;
+          hasMaxWayError = true;
+          continue;
         }
       }
       else if (member.type==RawRelation::memberRelation &&
@@ -700,11 +699,8 @@ namespace osmscout {
             wayIds.insert(member.id);
 
             if (wayIds.size()>MAX_WAYS) {
-              progress.Error("Relation "+
-                             NumberToString(rawRelation.GetId())+" "+name+
-                             " references too many ways (" +
-                             NumberToString(wayIds.size())+")");
-              return false;
+              hasMaxWayError = true;
+              continue;
             }
           }
           else if (member.type==RawRelation::memberRelation &&
@@ -741,6 +737,14 @@ namespace osmscout {
           }
         }
       }
+    }
+
+    if (hasMaxWayError) {
+      progress.Error("Relation "+
+                      NumberToString(rawRelation.GetId())+" "+name+
+                      " references too many ways (" +
+                      NumberToString(wayIds.size())+")");
+      return false;
     }
 
     // Now load all ways and collect all coordinate ids
@@ -1145,7 +1149,7 @@ namespace osmscout {
 
     if (!coordDataFile.Open(parameter.GetDestinationDirectory(),
                             parameter.GetCoordDataMemoryMaped())) {
-      std::cerr << "Cannot open coord data files!" << std::endl;
+      log.Error() << "Cannot open coord data files!";
       return false;
     }
 
@@ -1153,7 +1157,7 @@ namespace osmscout {
                           parameter.GetDestinationDirectory(),
                           parameter.GetRawWayIndexMemoryMaped(),
                           parameter.GetRawWayDataMemoryMaped())) {
-      std::cerr << "Cannot open raw way data files!" << std::endl;
+      log.Error() << "Cannot open raw way data files!";
       return false;
     }
 
@@ -1161,7 +1165,7 @@ namespace osmscout {
                           parameter.GetDestinationDirectory(),
                           true,
                           true)) {
-      std::cerr << "Cannot open raw relation data files!" << std::endl;
+      log.Error() << "Cannot open raw relation data files!";
       return false;
     }
 

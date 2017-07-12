@@ -375,6 +375,43 @@ namespace osmscout {
     return bearing;
   }
 
+  /**
+   * Taken the path from A to B over a sphere return the bearing (0..2PI) at the destination point B.
+   */
+  double GetSphericalBearingFinal(const GeoCoord& a,
+                                  const GeoCoord& b)
+  {
+    double aLon=a.GetLon()*M_PI/180;
+    double aLat=a.GetLat()*M_PI/180;
+
+    double bLon=b.GetLon()*M_PI/180;
+    double bLat=b.GetLat()*M_PI/180;
+
+    double dLon=aLon-bLon;
+
+    double sindLon, sinaLat, sinbLat;
+    double cosdLon, cosaLat, cosbLat;
+    sincos(dLon, sindLon, cosdLon);
+    sincos(aLat, sinaLat, cosaLat);
+    sincos(bLat, sinbLat, cosbLat);
+
+    double y=sindLon*cosaLat;
+    double x=cosbLat*sinaLat-sinbLat*cosaLat*cosdLon;
+
+    double bearing=atan2(y,x);
+
+    if (bearing>=0) {
+      bearing-=M_PI;
+    }
+    else {
+      bearing+=M_PI;
+    }
+
+    //double bearing=fmod(atan2(y,x)+3*M_PI,2*M_PI);
+
+    return bearing;
+  }
+
   std::string BearingDisplayString(double bearing)
   {
     int grad=(int)round(bearing*180/M_PI);
@@ -385,7 +422,7 @@ namespace osmscout {
       grad+=360;
     }
 
-    if (grad>0 && grad<=45) {
+    if (grad>=0 && grad<=45) {
       return "N";
     }
     else if (grad>45 && grad<=135) {
@@ -397,7 +434,7 @@ namespace osmscout {
     else if (grad>225 && grad<=315) {
       return "W";
     }
-    else if (grad>315 && grad<=360) {
+    else if (grad>315 && grad<360) {
       return "N";
     }
 

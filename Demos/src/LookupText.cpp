@@ -22,30 +22,38 @@
 #include <osmscout/Database.h>
 #include <algorithm>
 
+#include <osmscout/util/CmdLineParsing.h>
 
-void badInput()
+struct Arguments
 {
-  std::cout << "ERROR: Bad arguments" << std::endl;
-  std::cout << "* Pass in the directory containing the text data files,\n"
-               "  ie. text(poi,loc,region,other).dat" << std::endl;
-  std::cout << "ex:" << std::endl;
-  std::cout << "./LookupText /path/to/imported/map/data" << std::endl;
-}
+  bool        help;
+  std::string databaseDirectory;
+
+  Arguments()
+    : help(false)
+  {
+    // no code
+  }
+};
 
 void printDetails(const osmscout::FeatureValueBuffer& features)
 {
   std::cout << "   - type:     " << features.GetType()->GetName() << std::endl;
-  for (auto featureInstance :features.GetType()->GetFeatures()){
-    if (features.HasFeature(featureInstance.GetIndex())){
+
+  for (auto featureInstance :features.GetType()->GetFeatures()) {
+    if (features.HasFeature(featureInstance.GetIndex())) {
       osmscout::FeatureRef feature=featureInstance.GetFeature();
-      if (feature->HasValue() && feature->HasLabel()){
+
+      if (feature->HasValue() && feature->HasLabel()) {
         osmscout::FeatureValue *value=features.GetValue(featureInstance.GetIndex());
-        if (value->GetLabel().empty()){
+        if (value->GetLabel().empty()) {
           std::cout << "   + feature " << feature->GetName() << std::endl;
-        }else{
-          std::cout << "   + feature " << feature->GetName() << ": " << value->GetLabel() << std::endl;
         }
-      }else{
+        else {
+          std::cout << "   + feature " << feature->GetName() << ": " << osmscout::UTF8StringToLocaleString(value->GetLabel()) << std::endl;
+        }
+      }
+      else {
         std::cout << "   + feature " << feature->GetName() << std::endl;
       }
     }
@@ -54,15 +62,47 @@ void printDetails(const osmscout::FeatureValueBuffer& features)
 
 int main (int argc, char *argv[])
 {
-  if(argc != 2) {
-    badInput();
-    return -1;
+  osmscout::CmdLineParser   argParser("LookupText",
+                                      argc,argv);
+  std::vector<std::string>  helpArgs{"h","help"};
+  Arguments                 args;
+
+  argParser.AddOption(osmscout::CmdLineFlag([&args](const bool& value) {
+                        args.help=value;
+                      }),
+                      helpArgs,
+                      "Return argument help",
+                      true);
+
+  argParser.AddPositional(osmscout::CmdLineStringOption([&args](const std::string& value) {
+                            args.databaseDirectory=value;
+                          }),
+                          "DATABASE",
+                          "Directory of the database to use");
+
+  osmscout::CmdLineParseResult result=argParser.Parse();
+
+  if (result.HasError()) {
+    std::cerr << "ERROR: " << result.GetErrorDescription() << std::endl;
+    std::cout << argParser.GetHelp() << std::endl;
+    return 1;
+  }
+  else if (args.help) {
+    std::cout << argParser.GetHelp() << std::endl;
+    return 0;
+  }
+
+  try {
+    std::locale::global(std::locale(""));
+  }
+  catch (const std::runtime_error& e) {
+    std::cerr << "Cannot set locale: \"" << e.what() << "\"" << std::endl;
   }
 
   // load text data files
-  std::string path(argv[1]);
   osmscout::TextSearchIndex textSearch;
-  if(!textSearch.Load(path)) {
+
+  if(!textSearch.Load(args.databaseDirectory)) {
     std::cout << "ERROR: Failed to load text files!"
                  "(are you sure you passed the right path?)"
               << std::endl;
@@ -76,9 +116,10 @@ int main (int argc, char *argv[])
 
 
   while(true) {
-    std::cout << std::endl;
-    std::cout << "Enter a search term:"<<std::endl;
     std::string searchInput;
+
+    std::cout << std::endl;
+    std::cout << "Enter a search term:"<< std::endl;
     std::getline(std::cin,searchInput);
 
     if(searchInput.size() < 3) {
@@ -94,7 +135,8 @@ int main (int argc, char *argv[])
 
     // search using the text input as the query
     osmscout::TextSearchIndex::ResultsMap results;
-    textSearch.Search(searchInput,true,true,true,true,results);
+
+    textSearch.Search(osmscout::LocaleStringToUTF8String(searchInput),true,true,true,true,results);
 
     if(results.empty()) {
       std::cout << "No results found." << std::endl;
@@ -102,8 +144,8 @@ int main (int argc, char *argv[])
     }
 
     osmscout::DatabaseParameter databaseParameter;
-    osmscout::DatabaseRef       database(new osmscout::Database(databaseParameter));
-    if (!database->Open(path.c_str())) {
+    osmscout::DatabaseRef       database=std::make_shared<osmscout::Database>(databaseParameter);
+    if (!database->Open(args.databaseDirectory)) {
       std::cerr << "Cannot open database" << std::endl;
       return 1;
     }

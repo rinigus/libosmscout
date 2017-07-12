@@ -44,7 +44,7 @@ namespace osmscout {
     It uses C standard library FILE internally and wraps it to offer
     a number of convenience methods.
     */
-  class OSMSCOUT_API FileWriter
+  class OSMSCOUT_API FileWriter CLASS_FINAL
   {
   private:
     std::string          filename;    //!< The filename
@@ -117,6 +117,7 @@ namespace osmscout {
     void WriteInvalidCoord();
 
     void Write(const std::vector<Point>& nodes, bool writeIds);
+    void Write(const std::vector<GeoCoord>& nodes);
 
     void WriteTypeId(TypeId id, uint8_t maxBytes);
 

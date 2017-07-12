@@ -19,6 +19,7 @@
 
 #include <osmscout/import/Preprocess.h>
 
+#include <functional>
 #include <limits>
 
 #include <osmscout/system/Math.h>
@@ -36,12 +37,13 @@
 #include <osmscout/import/RawWay.h>
 
 #include <osmscout/private/Config.h>
+#include <osmscout/ImportFeatures.h>
 
-#if defined(HAVE_LIB_XML)
+#if defined(HAVE_LIB_XML) || defined(OSMSCOUT_IMPORT_HAVE_XML_SUPPORT)
   #include <osmscout/import/PreprocessOSM.h>
 #endif
 
-#if defined(HAVE_LIB_PROTOBUF)
+#if defined(HAVE_LIB_PROTOBUF) || defined(OSMSCOUT_IMPORT_HAVE_PROTOBUF_SUPPORT)
   #include <osmscout/import/PreprocessPBF.h>
 #endif
 
@@ -902,7 +904,7 @@ namespace osmscout {
       if (filename.length()>=4 &&
           filename.substr(filename.length()-4)==".osm")  {
 
-#if defined(HAVE_LIB_XML)
+#if defined(HAVE_LIB_XML) || defined(OSMSCOUT_IMPORT_HAVE_XML_SUPPORT)
         PreprocessOSM preprocess(callback);
 
         if (!preprocess.Import(typeConfig,
@@ -919,7 +921,7 @@ namespace osmscout {
       else if (filename.length()>=4 &&
             filename.substr(filename.length()-4)==".pbf") {
 
-#if defined(HAVE_LIB_PROTOBUF)
+#if defined(HAVE_LIB_PROTOBUF) || defined(OSMSCOUT_IMPORT_HAVE_PROTOBUF_SUPPORT)
         PreprocessPBF preprocess(callback);
 
         if (!preprocess.Import(typeConfig,
@@ -935,7 +937,7 @@ namespace osmscout {
       }
       else if (filename.length()>=5 &&
             filename.substr(filename.length()-5)==".poly") {
-        
+
         PreprocessPoly preprocess(callback);
 
         if (!preprocess.Import(typeConfig,
@@ -947,6 +949,17 @@ namespace osmscout {
       }
       else {
         progress.Error("Sorry, this file type is not yet supported!");
+        return false;
+      }
+    }
+
+    if (!parameter.GetBoundingPolygonFile().empty()) {
+      PreprocessPoly preprocess(callback);
+
+      if (!preprocess.Import(typeConfig,
+                             parameter,
+                             progress,
+                             parameter.GetBoundingPolygonFile())) {
         return false;
       }
     }

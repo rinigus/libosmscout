@@ -7,6 +7,7 @@ nobase_include_HEADERS= osmscout/private/Config.h \
                         osmscout/system/Types.h \
                         osmscout/util/Breaker.h \
                         osmscout/util/Cache.h \
+                        osmscout/util/CmdLineParsing.h \
                         osmscout/util/Color.h \
                         osmscout/util/Exception.h \
                         osmscout/util/File.h \
@@ -72,6 +73,7 @@ nobase_include_HEADERS= osmscout/private/Config.h \
                         osmscout/TypeDistributionDataFile.h \
                         osmscout/Database.h \
                         osmscout/DebugDatabase.h \
+                        osmscout/BasemapDatabase.h \
                         osmscout/SRTM.h \
                         osmscout/LocationService.h \
                         osmscout/POIService.h \

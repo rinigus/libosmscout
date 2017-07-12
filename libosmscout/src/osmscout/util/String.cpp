@@ -21,12 +21,15 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 #include <cwchar>
 #include <iomanip>
 #include <locale>
 #include <sstream>
 
 #include <osmscout/system/Math.h>
+
+#include <osmscout/util/Logger.h>
 
 #include <osmscout/private/Config.h>
 
@@ -38,10 +41,33 @@
 #include <iconv.h>
 #endif
 
-#include <string.h>
-#include <iostream>
 namespace osmscout {
 
+  bool StringToBool(const char* string, bool& value)
+  {
+    if (std::strcmp(string,"true")==0) {
+      value=true;
+
+      return true;
+    }
+    else if (std::strcmp(string,"false")==0) {
+      value=false;
+
+      return true;
+    }
+
+    return false;
+  }
+
+  const char* BoolToString(bool value)
+  {
+    if (value) {
+      return "true";
+    }
+    else {
+      return "false";
+    }
+  }
 
   bool GetDigitValue(char digit, size_t& result)
   {
@@ -358,7 +384,7 @@ namespace osmscout {
     }
 
     delete [] out;
-    
+
     return result;
   }
 
@@ -379,10 +405,10 @@ namespace osmscout {
     }
 
     delete [] out;
-    
+
     return result;
   }
-  
+
 #if defined(HAVE_ICONV)
   std::wstring UTF8StringToWString(const std::string& text)
   {
@@ -391,7 +417,7 @@ namespace osmscout {
 
     handle=iconv_open("WCHAR_T","UTF-8");
     if (handle==(iconv_t)-1) {
-      std::cerr << "Error in UTF8StringToWString()" << strerror(errno) << std::endl;
+      log.Error() << "Error in UTF8StringToWString()" << strerror(errno);
       return L"";
     }
 
@@ -407,7 +433,7 @@ namespace osmscout {
     if (iconv(handle,(ICONV_CONST char**)&in,&inCount,&tmpOut,&tmpOutCount)==(size_t)-1) {
       iconv_close(handle);
       delete [] out;
-      std::cerr << "Error in UTF8StringToWString()" << strerror(errno) << std::endl;
+      log.Error() << "Error in UTF8StringToWString()" << strerror(errno);
       return L"";
     }
 
@@ -458,7 +484,7 @@ namespace osmscout {
 
     handle=iconv_open("UTF-8","WCHAR_T");
     if (handle==(iconv_t)-1) {
-      std::cerr << "Error iconv_open in WStringToUTF8String() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv_open in WStringToUTF8String() " << strerror(errno);
       return "";
     }
 
@@ -475,7 +501,7 @@ namespace osmscout {
     if (iconv(handle,(ICONV_CONST char**)&in,&inCount,&tmpOut,&tmpOutCount)==(size_t)-1) {
       iconv_close(handle);
       delete [] out;
-      std::cerr << "Error iconv in WStringToUTF8String() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv in WStringToUTF8String() " << strerror(errno);
       return "";
     }
 
@@ -505,7 +531,7 @@ namespace osmscout {
 
     handle=iconv_open("UTF-8","");
     if (handle==(iconv_t)-1) {
-      std::cerr << "Error iconv_open in LocaleStringToUTF8String() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv_open in LocaleStringToUTF8String() " << strerror(errno);
       return "";
     }
 
@@ -522,7 +548,7 @@ namespace osmscout {
     if (iconv(handle,(ICONV_CONST char**)&in,&inCount,&tmpOut,&tmpOutCount)==(size_t)-1) {
       iconv_close(handle);
       delete [] out;
-      std::cerr << "Error iconv in LocaleStringToUTF8String() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv in LocaleStringToUTF8String() " << strerror(errno);
       return "";
     }
 
@@ -548,13 +574,13 @@ namespace osmscout {
 
     handle=iconv_open("","UTF-8");
     if (handle==(iconv_t)-1) {
-      std::cerr << "Error iconv_open in UTF8StringToLocaleString() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv_open in UTF8StringToLocaleString() " << strerror(errno);
       return "";
     }
 
     // length+1 to get the result '\0'-terminated
     size_t inCount=text.length()+1;
-    size_t outCount=text.length()*4+1; // Up to 4 bytes for one UTF-8 character
+    size_t outCount=text.length()*4+2; // Up to 4 bytes for one UTF-8 character and space for a byte order mark
 
     char *in=const_cast<char*>(text.data());
     char *out=new char[outCount];
@@ -565,7 +591,7 @@ namespace osmscout {
     if (iconv(handle,(ICONV_CONST char**)&in,&inCount,&tmpOut,&tmpOutCount)==(size_t)-1) {
       iconv_close(handle);
       delete [] out;
-      std::cerr << "Error iconv in UTF8StringToLocaleString() " << strerror(errno) << std::endl;
+      log.Error() << "Error iconv in UTF8StringToLocaleString() " << strerror(errno);
       return "";
     }
 
@@ -583,7 +609,7 @@ namespace osmscout {
     return WStringToLocaleString(UTF8StringToWString(text));
   }
 #endif
-  
+
   std::string UTF8StringToUpper(const std::string& text)
   {
     //std::cout << "* O \"" << text << std::endl;

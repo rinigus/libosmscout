@@ -23,7 +23,6 @@
 // For memcpy
 #include <string.h>
 
-#include <iostream>
 #include <vector>
 
 #include <osmscout/private/CoreImportExport.h>
@@ -32,6 +31,7 @@
 #include <osmscout/Pixel.h>
 
 #include <osmscout/util/Geometry.h>
+#include <osmscout/util/Logger.h>
 #include <osmscout/util/Projection.h>
 
 #include <osmscout/system/Assert.h>
@@ -96,10 +96,13 @@ namespace osmscout {
 
   private:
     void TransformGeoToPixel(const Projection& projection,
+                             const std::vector<GeoCoord>& nodes);
+    void TransformGeoToPixel(const Projection& projection,
                              const std::vector<Point>& nodes);
     void DropSimilarPoints(double optimizeErrorTolerance);
     void DropRedundantPointsFast(double optimizeErrorTolerance);
     void DropRedundantPointsDouglasPeucker(double optimizeErrorTolerance, bool isArea);
+    void DropEqualPoints();
     void EnsureSimple(bool isArea);
 
   public:
@@ -128,15 +131,31 @@ namespace osmscout {
 
     void TransformArea(const Projection& projection,
                        OptimizeMethod optimize,
+                       const std::vector<GeoCoord>& nodes,
+                       double optimizeErrorTolerance,
+                       OutputConstraint constraint=noConstraint);
+    void TransformArea(const Projection& projection,
+                       OptimizeMethod optimize,
                        const std::vector<Point>& nodes,
                        double optimizeErrorTolerance,
                        OutputConstraint constraint=noConstraint);
 
     void TransformWay(const Projection& projection,
                       OptimizeMethod optimize,
+                      const std::vector<GeoCoord>& nodes,
+                      double optimizeErrorTolerance,
+                      OutputConstraint constraint=noConstraint);
+    void TransformWay(const Projection& projection,
+                      OptimizeMethod optimize,
                       const std::vector<Point>& nodes,
                       double optimizeErrorTolerance,
                       OutputConstraint constraint=noConstraint);
+
+    void TransformBoundingBox(const Projection& projection,
+                              OptimizeMethod optimize,
+                              const GeoBox& boundingBox,
+                              double optimizeErrorTolerance,
+                              OutputConstraint constraint=noConstraint);
 
     bool GetBoundingBox(double& xmin, double& ymin,
                         double& xmax, double& ymax) const;
@@ -228,7 +247,7 @@ namespace osmscout {
 
       memcpy(newBuffer,buffer,sizeof(P)*usedPoints);
 
-      std::cout << "*** Buffer reallocation: " << bufferSize << std::endl;
+      log.Warn() << "*** Buffer reallocation: " << bufferSize;
 
       delete [] buffer;
 
