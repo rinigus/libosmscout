@@ -34,7 +34,7 @@ libosmscout qt libraries - development files
 
 
 %prep
-%setup -q 
+%setup -q -n %{name}-%{version}
 
 %build
 
