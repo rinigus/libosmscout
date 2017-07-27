@@ -14,7 +14,7 @@ Requires: libmarisa
 #Requires: pango
 
 BuildRequires: cmake
-BuildRequires: pkgconfig(Qt5Core) pkgconfig(Qt5Gui) 
+BuildRequires: pkgconfig(Qt5Core) pkgconfig(Qt5Gui) pkgconfig(Qt5Widgets) pkgconfig(Qt5Quick)
 #BuildRequires: protobuf-devel
 BuildRequires: libxml2-devel
 BuildRequires: libmarisa-devel
