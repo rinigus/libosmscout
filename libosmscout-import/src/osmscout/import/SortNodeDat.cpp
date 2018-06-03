@@ -95,7 +95,7 @@ namespace osmscout {
       }
 
       if (node.GetType()->GetIndexAsPOI()) {
-        isPoi=nameValue!=nullptr;
+        isPoi=true; //nameValue!=nullptr;
       }
 
       std::string name;

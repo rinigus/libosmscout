@@ -1801,7 +1801,7 @@ namespace osmscout {
 
         bool isAddress=!location.empty() &&
                        !address.empty();
-        bool isPOI=!name.empty() &&
+        bool isPOI=//!name.empty() && 
                    type->GetIndexAsPOI();
 
         if (!postalCode.empty()) {
@@ -2011,7 +2011,7 @@ namespace osmscout {
         typeId=(TypeId)tmpType;
         type=typeConfig.GetWayTypeInfo(typeId);
 
-        bool isPOI=!name.empty() &&
+        bool isPOI=//!name.empty() && 
                    type->GetIndexAsPOI();
 
         if (!postalCode.empty()) {
@@ -2196,7 +2196,7 @@ namespace osmscout {
 
         bool isAddress=!location.empty() &&
                        !address.empty();
-        bool isPOI=!name.empty() &&
+        bool isPOI=// !name.empty() && 
                    type->GetIndexAsPOI();
 
         if (postalCode.empty())
