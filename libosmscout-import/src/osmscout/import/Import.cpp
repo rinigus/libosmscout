@@ -1094,7 +1094,7 @@ namespace osmscout {
         progress.Info("  " + lang);
         typeConfig->GetTagRegistry().RegisterNameAltTag("name:"+lang, langIndex);
         typeConfig->GetTagRegistry().RegisterNameAltTag("place_name:"+lang, langIndex+1);
-        typeConfig->GetTagRegistry().RegisterNameAltTag("brand", langIndex+3);
+        typeConfig->GetTagRegistry().RegisterNameAltTag("brand", langIndex+2);
       }
       langIndex+=3;
     }
