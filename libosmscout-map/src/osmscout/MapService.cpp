@@ -20,6 +20,7 @@
 #include <osmscout/MapService.h>
 
 #include <algorithm>
+#include <functional>
 #include <future>
 
 #include <osmscout/system/Assert.h>
